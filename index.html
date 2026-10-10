@@ -4,26 +4,31 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#101827">
-  <meta name="description" content="Prototipo funzionale Bank Empire: portafoglio multivaluta, imperi e libro mastro.">
-  <title>Bank Empire · 0.6</title>
+  <meta name="description" content="Bank Empire: portafogli multivaluta, imperi e libro mastro condivisi.">
+  <title>Bank Empire · 0.7</title>
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="script.js" defer></script>
 </head>
 <body>
   <header class="site-header">
-    <a class="brand" href="#wallet">Bank Empire <span>0.6</span></a>
-    <nav aria-label="Navigazione principale">
+    <a class="brand" href="#wallet">Bank Empire <span>0.7</span></a>
+    <nav id="main-nav" aria-label="Navigazione principale" hidden>
       <a href="#wallet" data-page="wallet">Portafoglio</a>
       <a href="#empires" data-page="empires">Imperi</a>
       <a href="#ledger" data-page="ledger">Libro mastro</a>
     </nav>
-    <span class="demo-label">Demo locale</span>
+    <div class="header-actions">
+      <span id="user-label" class="demo-label">Connessione al database…</span>
+      <button id="logout-button" type="button" hidden>Esci</button>
+    </div>
   </header>
   <main class="container">
-    <div class="notice"><strong>Prototipo:</strong> i dati sono salvati solo in questo browser. Non esistono ancora login o database condiviso.</div>
+    <div id="notice" class="notice"><strong>Bank Empire:</strong> caricamento…</div>
+    <section id="auth-panel" class="panel" hidden aria-live="polite"></section>
     <section id="page-content" aria-live="polite"></section>
   </main>
-  <footer>Bank Empire · Versione 0.6 · Nessun denaro reale</footer>
+  <footer>Bank Empire · Versione 0.7 · Valuta virtuale, nessun denaro reale</footer>
   <div id="toast-region" role="status" aria-live="polite"></div>
 </body>
 </html>
