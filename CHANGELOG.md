@@ -1,3 +1,10 @@
+## 0.5
+
+- Separati ricerca e filtri del Libro mastro, Marketplace e Aziende per evitare che i filtri di una pagina influenzino le altre.
+- Lasciata la pagina Ruolo come segnaposto: ruoli, password e azioni saranno definiti dall’utente, senza presumere permessi.
+- Corretto l’export CSV affinché gli importi numerici negativi restino numeri e le celle testuali continuino ad avere una protezione basilare contro formule CSV.
+- Aggiornate le etichette di versione e la documentazione.
+
 ## 0.4
 
 - Aggiunta la pagina Ruolo con interfacce demo per Admin Supremo, Imperatore e Gestore azienda.
