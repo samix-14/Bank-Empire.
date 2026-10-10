@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7
+
+- Collegato Bank Empire al progetto Supabase condiviso.
+- Aggiunti registrazione, accesso e uscita con email e password.
+- Ogni utente ha un profilo, un impero e tre portafogli personali inizializzati a zero.
+- Spostata la logica dei trasferimenti nel database con funzione atomica e controlli lato server.
+- Aggiunti controlli RLS per profili, portafogli, imperi e transazioni.
+- Il libro mastro mostra le transazioni dell'utente autenticato.
+- I totali degli imperi vengono aggregati dal database senza esporre i singoli saldi degli altri utenti.
+- Aggiornata la documentazione.
+
 ## 0.6
 
 - Ridotta l'app alle sole pagine Portafoglio, Imperi e Libro mastro.
@@ -14,7 +25,7 @@
 
 ## 0.5
 
-- Separati ricerca e filtri del Libro mastro, Marketplace e Aziende.
+- Aggiunta la gestione separata di ricerca e filtri del Libro mastro, Marketplace e Aziende.
 - Lasciata la pagina Ruolo come segnaposto.
 - Corretto l'export CSV degli importi negativi.
 - Aggiornate le etichette di versione e la documentazione.
