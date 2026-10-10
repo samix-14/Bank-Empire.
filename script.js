@@ -170,7 +170,7 @@
 
   function csvSafe(value) {
     var text = String(value === null || value === undefined ? "" : value);
-    if (/^[\\s]*[=+\\-@]/.test(text)) text = "'" + text;
+    if (/^\s*[=+\-@]/.test(text)) text = "'" + text;
     return '"' + text.replace(/"/g, '""') + '"';
   }
 
@@ -179,7 +179,7 @@
     filteredTransactions().forEach(function (tx) {
       rows.push([tx.id, tx.title, tx.detail, tx.date, tx.currency, tx.amount.toFixed(2), tx.type, tx.status]);
     });
-    var csv = "\\uFEFF" + rows.map(function (row) { return row.map(csvSafe).join(";"); }).join("\\r\\n");
+    var csv = "\uFEFF" + rows.map(function (row) { return row.map(csvSafe).join(";"); }).join("\r\n");
     var url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
     var link = document.createElement("a");
     link.href = url;
