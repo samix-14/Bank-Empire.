@@ -13,10 +13,12 @@
   var toastRegion = document.getElementById("toast-region");
   var sidebar = document.getElementById("sidebar");
   var overlay = document.getElementById("mobile-overlay");
-  var activeFilter = "tutti";
-  var searchQuery = "";
+  var ledgerFilter = "tutti";
+  var ledgerSearch = "";
+  var marketFilter = "tutti";
+  var marketSearch = "";
+  var businessSearch = "";
   var transactionId = 8;
-  var activeRole = null;
 
   var currencies = {
     SOL: { name: "Solari", symbol: "S", className: "symbol-gold", rate: 1, note: "Valuta di riferimento demo" },
@@ -170,9 +172,9 @@
     }
   }
 
-  function csvSafe(value) {
+  function csvSafe(value, protectFormula) {
     var text = String(value === null || value === undefined ? "" : value);
-    if (/^\s*[=+\-@]/.test(text)) text = "'" + text;
+    if (protectFormula !== false && /^\s*[=+\-@]/.test(text)) text = "'" + text;
     return '"' + text.replace(/"/g, '""') + '"';
   }
 
@@ -181,7 +183,7 @@
     filteredTransactions().forEach(function (tx) {
       rows.push([tx.id, tx.title, tx.detail, tx.date, tx.currency, tx.amount.toFixed(2), tx.type, tx.status]);
     });
-    var csv = "\uFEFF" + rows.map(function (row) { return row.map(csvSafe).join(";"); }).join("\r\n");
+    var csv = "\uFEFF" + rows.map(function (row) { return row.map(function (value, index) { return csvSafe(value, index !== 5); }).join(";"); }).join("\r\n");
     var url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
     var link = document.createElement("a");
     link.href = url;
@@ -297,91 +299,14 @@
   }
 
   function renderRole() {
-    if (!activeRole) {
-      pageContent.innerHTML = '<section class="panel role-panel"><div class="panel-header"><div><h2 class="panel-title">Accedi alla tua area ruolo</h2><p class="panel-subtitle">La password di demo cambia l’interfaccia mostrata, ma non costituisce autenticazione reale.</p></div><span class="role-mark">⚿</span></div><div class="panel-body"><form id="role-login-form" class="role-login-form"><div class="form-field"><label for="role-password">Password ruolo</label><input id="role-password" name="password" type="password" autocomplete="off" required placeholder="Inserisci il codice demo"></div><div class="modal-actions"><button class="button button-primary" type="submit">Apri area ruolo</button></div></form><div class="callout" style="margin-top:18px"><strong>Codici per provare la demo:</strong><br><code>demo-admin</code> · Admin Supremo<br><code>demo-impero</code> · Imperatore<br><code>demo-azienda</code> · Gestore azienda<br><br>Questi codici sono pubblici nel codice del prototipo. Non usarli come password vere.</div></div></section>';
-      document.getElementById("role-login-form").addEventListener("submit", function (event) {
-        event.preventDefault();
-        var password = String(new FormData(event.currentTarget).get("password") || "");
-        var roles = { "demo-admin": "Admin Supremo", "demo-impero": "Imperatore", "demo-azienda": "Gestore azienda" };
-        if (!roles[password]) {
-          toast("Codice non riconosciuto", "Usa uno dei codici dimostrativi indicati nella pagina.");
-          return;
-        }
-        activeRole = roles[password];
-        toast("Area ruolo aperta", "Interfaccia demo: " + activeRole + ".");
-        renderRole();
-      });
-      return;
-    }
-    var actions = "";
-    var summary = "";
-    if (activeRole === "Admin Supremo") {
-      summary = "Controllo generale della piattaforma, con funzioni dimostrative per l’emissione monetaria.";
-      actions = '<button class="button button-primary" data-action="role-issue">＋ Registra emissione demo</button><button class="button button-secondary" data-action="new-empire">Crea impero demo</button><button class="button button-secondary" data-action="new-business">Registra azienda demo</button>';
-    } else if (activeRole === "Imperatore") {
-      summary = "Gestione fiscale degli imperi e accesso agli strumenti amministrativi dimostrativi.";
-      actions = '<button class="button button-primary" data-action="role-tax">Modifica aliquota fiscale</button><button class="button button-secondary" data-action="new-empire">Crea impero demo</button>';
-    } else {
-      summary = "Strumenti dimostrativi per registrare e consultare attività commerciali.";
-      actions = '<button class="button button-primary" data-action="new-business">＋ Registra azienda</button><button class="button button-secondary" data-action="page" data-page="marketplace">Apri marketplace</button>';
-    }
-    pageContent.innerHTML = '<section class="panel role-panel"><div class="panel-header"><div><h2 class="panel-title">Area: ' + escapeHtml(activeRole) + '</h2><p class="panel-subtitle">' + escapeHtml(summary) + '</p></div><button class="button button-quiet button-small" data-action="role-logout">Esci dal ruolo</button></div><div class="panel-body"><div class="role-actions">' + actions + '</div><div class="callout" style="margin-top:20px"><strong>Ambiente dimostrativo.</strong> Le azioni aggiornano dati locali del browser. I permessi non sono verificati da un server e non devono essere considerati sicuri.</div></div></section>';
-  }
-
-  function openRoleIssueForm() {
-    if (activeRole !== "Admin Supremo") return;
-    var options = wallets.map(function (wallet) { return '<option value="' + wallet.currency + '">' + wallet.currency + ' · ' + currencies[wallet.currency].name + '</option>'; }).join("");
-    var body = '<form id="role-issue-form"><div class="form-grid"><div class="form-field"><label for="issue-currency">Valuta demo</label><select id="issue-currency" name="currency">' + options + '</select></div><div class="form-field"><label for="issue-amount">Importo da emettere</label><input id="issue-amount" name="amount" type="number" min="0.01" max="100000000" step="0.01" required></div></div><p class="modal-note">Questa funzione aggiunge un movimento locale di prova, non crea nuova valuta reale.</p><div class="modal-actions"><button type="button" class="button button-quiet" data-action="close-modal">Annulla</button><button class="button button-primary" type="submit">Registra emissione demo</button></div></form>';
-    modalFrame("Emissione monetaria demo", "Solo per testare l’interfaccia Admin Supremo.", body, "");
-    document.getElementById("role-issue-form").addEventListener("submit", function (event) {
-      event.preventDefault();
-      if (activeRole !== "Admin Supremo") return;
-      var form = new FormData(event.currentTarget);
-      var amount = Number(form.get("amount"));
-      var currency = String(form.get("currency"));
-      var wallet = wallets.find(function (item) { return item.currency === currency; });
-      if (!wallet || !Number.isFinite(amount) || amount <= 0) {
-        toast("Importo non valido", "Inserisci un importo positivo.");
-        return;
-      }
-      wallet.balance += amount;
-      transactionId += 1;
-      transactions.unshift({ id: "BE-" + String(transactionId).padStart(3, "0"), title: "Emissione monetaria demo", detail: "Admin Supremo", date: "Adesso · demo", amount: amount, currency: currency, type: "entrata", status: "Completata", icon: "↙" });
-      persistState();
-      modal.close();
-      toast("Emissione demo registrata", "Saldo locale aggiornato per " + currency + ".");
-      renderRole();
-    });
-  }
-
-  function openRoleTaxForm() {
-    if (activeRole !== "Imperatore" && activeRole !== "Admin Supremo") return;
-    var options = empires.map(function (empire, index) { return '<option value="' + index + '">' + escapeHtml(empire.name) + ' · ora ' + empire.tax + '%</option>'; }).join("");
-    var body = '<form id="role-tax-form"><div class="form-field"><label for="tax-empire">Impero</label><select id="tax-empire" name="empire">' + options + '</select></div><div class="form-field" style="margin-top:12px"><label for="tax-value">Nuova aliquota (%)</label><input id="tax-value" name="tax" type="number" min="0" max="100" step="0.1" required></div><div class="modal-actions"><button type="button" class="button button-quiet" data-action="close-modal">Annulla</button><button class="button button-primary" type="submit">Salva demo</button></div></form>';
-    modalFrame("Gestione fiscale demo", "Le modifiche restano nel browser corrente.", body, "");
-    document.getElementById("role-tax-form").addEventListener("submit", function (event) {
-      event.preventDefault();
-      if (activeRole !== "Imperatore" && activeRole !== "Admin Supremo") return;
-      var form = new FormData(event.currentTarget);
-      var index = Number(form.get("empire"));
-      var tax = Number(form.get("tax"));
-      if (!Number.isInteger(index) || !empires[index] || !Number.isFinite(tax) || tax < 0 || tax > 100) {
-        toast("Dati non validi", "L’aliquota deve essere compresa tra 0 e 100.");
-        return;
-      }
-      empires[index].tax = tax;
-      persistState();
-      modal.close();
-      toast("Aliquota aggiornata", "Modifica dimostrativa salvata localmente.");
-      renderRole();
-    });
+    pageContent.innerHTML = '<section class="panel"><div class="panel-header"><div><h2 class="panel-title">Pagina Ruolo</h2><p class="panel-subtitle">Questa sezione verrà configurata quando saranno definiti i ruoli, le password e le relative autorizzazioni.</p></div></div><div class="panel-body"><div class="empty-state">Area in preparazione. Nessun ruolo o permesso è stato configurato.</div></div></section>';
   }
 
   function filteredTransactions() {
     return transactions.filter(function (tx) {
-      var matchesFilter = activeFilter === "tutti" || tx.type === activeFilter;
+      var matchesFilter = ledgerFilter === "tutti" || tx.type === ledgerFilter;
       var haystack = [tx.id, tx.title, tx.detail, tx.currency, tx.status].join(" ").toLowerCase();
-      return matchesFilter && haystack.indexOf(searchQuery.toLowerCase()) !== -1;
+      return matchesFilter && haystack.indexOf(ledgerSearch.toLowerCase()) !== -1;
     });
   }
 
@@ -391,14 +316,14 @@
 
   function renderLedger() {
     var list = filteredTransactions();
-    pageContent.innerHTML = '<div class="section-heading"><div><h2>Registro completo</h2><p>' + list.length + ' operazioni corrispondenti · dati dimostrativi</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="button button-secondary" data-action="export-ledger">Esporta CSV</button><button class="button button-primary" data-action="new-transaction">＋ Nuova operazione</button></div></div><section class="panel"><div class="panel-header"><div><h2 class="panel-title">Libro mastro</h2><p class="panel-subtitle">Ogni riga rappresenta un movimento simulato</p></div>' + badge("APPEND-ONLY · OBIETTIVO FUTURO", "blue") + '</div><div class="panel-body"><div class="toolbar"><label class="search-box"><input id="ledger-search" type="search" placeholder="Cerca operazione, riferimento..." value="' + escapeHtml(searchQuery) + '" aria-label="Cerca nel libro mastro"></label><select class="select-control" id="ledger-filter" aria-label="Filtra tipo di operazione"><option value="tutti">Tutti i movimenti</option><option value="entrata">Entrate</option><option value="uscita">Uscite</option></select></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Riferimento</th><th>Operazione</th><th>Data</th><th>Valuta</th><th>Importo</th><th>Stato</th></tr></thead><tbody id="ledger-rows">' + (list.length ? list.map(transactionRow).join("") : '<tr><td colspan="6"><div class="empty-state">Nessun movimento trovato. La ricerca non è telepatica, purtroppo.</div></td></tr>') + '</tbody></table></div></section><div class="callout" style="margin-top:16px"><strong>Integrità dei dati:</strong> qui le righe sono modificabili solo perché sono dati fittizi conservati localmente nel browser. Il sistema definitivo dovrà impedire la modifica diretta delle transazioni e correggere gli errori con registrazioni compensative collegate.</div>';
+    pageContent.innerHTML = '<div class="section-heading"><div><h2>Registro completo</h2><p>' + list.length + ' operazioni corrispondenti · dati dimostrativi</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="button button-secondary" data-action="export-ledger">Esporta CSV</button><button class="button button-primary" data-action="new-transaction">＋ Nuova operazione</button></div></div><section class="panel"><div class="panel-header"><div><h2 class="panel-title">Libro mastro</h2><p class="panel-subtitle">Ogni riga rappresenta un movimento simulato</p></div>' + badge("APPEND-ONLY · OBIETTIVO FUTURO", "blue") + '</div><div class="panel-body"><div class="toolbar"><label class="search-box"><input id="ledger-search" type="search" placeholder="Cerca operazione, riferimento..." value="' + escapeHtml(ledgerSearch) + '" aria-label="Cerca nel libro mastro"></label><select class="select-control" id="ledger-filter" aria-label="Filtra tipo di operazione"><option value="tutti">Tutti i movimenti</option><option value="entrata">Entrate</option><option value="uscita">Uscite</option></select></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Riferimento</th><th>Operazione</th><th>Data</th><th>Valuta</th><th>Importo</th><th>Stato</th></tr></thead><tbody id="ledger-rows">' + (list.length ? list.map(transactionRow).join("") : '<tr><td colspan="6"><div class="empty-state">Nessun movimento trovato. La ricerca non è telepatica, purtroppo.</div></td></tr>') + '</tbody></table></div></section><div class="callout" style="margin-top:16px"><strong>Integrità dei dati:</strong> qui le righe sono modificabili solo perché sono dati fittizi conservati localmente nel browser. Il sistema definitivo dovrà impedire la modifica diretta delle transazioni e correggere gli errori con registrazioni compensative collegate.</div>';
     var filter = document.getElementById("ledger-filter");
     var search = document.getElementById("ledger-search");
-    filter.value = activeFilter;
-    filter.addEventListener("change", function () { activeFilter = filter.value; renderLedger(); });
+    filter.value = ledgerFilter;
+    filter.addEventListener("change", function () { ledgerFilter = filter.value; renderLedger(); });
     search.addEventListener("input", function () {
       var cursor = search.selectionStart;
-      searchQuery = search.value;
+      ledgerSearch = search.value;
       var rows = document.getElementById("ledger-rows");
       var filtered = filteredTransactions();
       rows.innerHTML = filtered.length ? filtered.map(transactionRow).join("") : '<tr><td colspan="6"><div class="empty-state">Nessun movimento trovato.</div></td></tr>';
@@ -411,14 +336,14 @@
   function renderMarketplace() {
     var filtered = listings.filter(function (item) {
       var haystack = [item.name, item.description, item.seller, item.category, item.currency].join(" ").toLowerCase();
-      return haystack.indexOf(searchQuery.toLowerCase()) !== -1 && (activeFilter === "tutti" || item.category.toLowerCase() === activeFilter);
+      return haystack.indexOf(marketSearch.toLowerCase()) !== -1 && (marketFilter === "tutti" || item.category.toLowerCase() === marketFilter);
     });
-    pageContent.innerHTML = '<div class="section-heading"><div><h2>Offerte disponibili</h2><p>Catalogo fittizio · gli acquisti non generano pagamenti reali</p></div><button class="button button-primary" data-action="new-listing">＋ Pubblica offerta</button></div><div class="toolbar"><label class="search-box"><input id="market-search" type="search" placeholder="Cerca prodotti, servizi, venditori..." value="' + escapeHtml(searchQuery) + '" aria-label="Cerca nel marketplace"></label><select class="select-control" id="market-filter" aria-label="Filtra categoria"><option value="tutti">Tutte le categorie</option><option value="risorse">Risorse</option><option value="servizi">Servizi</option><option value="licenze">Licenze</option></select></div><div class="card-grid" id="market-cards">' + (filtered.length ? filtered.map(function (item) {
+    pageContent.innerHTML = '<div class="section-heading"><div><h2>Offerte disponibili</h2><p>Catalogo fittizio · gli acquisti non generano pagamenti reali</p></div><button class="button button-primary" data-action="new-listing">＋ Pubblica offerta</button></div><div class="toolbar"><label class="search-box"><input id="market-search" type="search" placeholder="Cerca prodotti, servizi, venditori..." value="' + escapeHtml(marketSearch) + '" aria-label="Cerca nel marketplace"></label><select class="select-control" id="market-filter" aria-label="Filtra categoria"><option value="tutti">Tutte le categorie</option><option value="risorse">Risorse</option><option value="servizi">Servizi</option><option value="licenze">Licenze</option></select></div><div class="card-grid" id="market-cards">' + (filtered.length ? filtered.map(function (item) {
       return '<article class="panel market-card"><div class="market-card-top"><span class="market-art">' + escapeHtml(item.mark) + '</span>' + badge(item.category, item.tone === "blue" ? "blue" : "gold") + '</div><h3>' + escapeHtml(item.name) + '</h3><p>' + escapeHtml(item.description) + '<br>Venditore: ' + escapeHtml(item.seller) + '</p><div class="market-card-bottom"><div class="market-price">' + money(item.price, item.currency) + '<small>Prezzo dimostrativo</small></div><button class="button button-secondary button-small" data-action="buy-listing" data-id="' + escapeHtml(item.id) + '">Dettagli ↗</button></div></article>';
     }).join("") : '<div class="panel empty-state">Nessuna offerta corrisponde ai filtri.</div>') + '</div>';
-    document.getElementById("market-filter").value = activeFilter;
-    document.getElementById("market-search").addEventListener("input", function (event) { searchQuery = event.target.value; renderMarketplace(); var input = document.getElementById("market-search"); input.focus(); input.setSelectionRange(searchQuery.length, searchQuery.length); });
-    document.getElementById("market-filter").addEventListener("change", function (event) { activeFilter = event.target.value; renderMarketplace(); });
+    document.getElementById("market-filter").value = marketFilter;
+    document.getElementById("market-search").addEventListener("input", function (event) { marketSearch = event.target.value; renderMarketplace(); var input = document.getElementById("market-search"); input.focus(); input.setSelectionRange(marketSearch.length, marketSearch.length); });
+    document.getElementById("market-filter").addEventListener("change", function (event) { marketFilter = event.target.value; renderMarketplace(); });
   }
 
   function renderEmpires() {
@@ -430,12 +355,12 @@
   function renderBusinesses() {
     var filtered = businesses.filter(function (business) {
       var haystack = [business.name, business.owner, business.category, business.status].join(" ").toLowerCase();
-      return haystack.indexOf(searchQuery.toLowerCase()) !== -1;
+      return haystack.indexOf(businessSearch.toLowerCase()) !== -1;
     });
-    pageContent.innerHTML = '<div class="section-heading"><div><h2>Registro delle aziende</h2><p>' + filtered.length + ' attività mostrate · ricavi di esempio, non verificati</p></div><button class="button button-primary" data-action="new-business">＋ Registra azienda</button></div><section class="panel"><div class="panel-header"><div><h2 class="panel-title">Attività commerciali</h2><p class="panel-subtitle">Proprietà singola o condivisa</p></div></div><div class="panel-body"><div class="toolbar"><label class="search-box"><input id="business-search" type="search" placeholder="Cerca azienda, proprietario, settore..." value="' + escapeHtml(searchQuery) + '" aria-label="Cerca aziende"></label></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Azienda</th><th>Proprietario</th><th>Settore</th><th>Ricavi demo</th><th>Stato</th><th></th></tr></thead><tbody>' + (filtered.length ? filtered.map(function (business) {
+    pageContent.innerHTML = '<div class="section-heading"><div><h2>Registro delle aziende</h2><p>' + filtered.length + ' attività mostrate · ricavi di esempio, non verificati</p></div><button class="button button-primary" data-action="new-business">＋ Registra azienda</button></div><section class="panel"><div class="panel-header"><div><h2 class="panel-title">Attività commerciali</h2><p class="panel-subtitle">Proprietà singola o condivisa</p></div></div><div class="panel-body"><div class="toolbar"><label class="search-box"><input id="business-search" type="search" placeholder="Cerca azienda, proprietario, settore..." value="' + escapeHtml(businessSearch) + '" aria-label="Cerca aziende"></label></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Azienda</th><th>Proprietario</th><th>Settore</th><th>Ricavi demo</th><th>Stato</th><th></th></tr></thead><tbody>' + (filtered.length ? filtered.map(function (business) {
       return '<tr><td><div class="table-entity">' + entityMark(business.mark, business.tone) + '<div class="entity-copy"><strong>' + escapeHtml(business.name) + '</strong><small>Attività economica</small></div></div></td><td>' + escapeHtml(business.owner) + '</td><td>' + escapeHtml(business.category) + '</td><td class="cell-primary">' + money(business.revenue, business.currency) + '</td><td>' + badge(business.status, business.status === "Operativa" ? "green" : "gold") + '</td><td><button class="text-link" data-action="business-details" data-name="' + escapeHtml(business.name) + '">Dettagli ↗</button></td></tr>';
     }).join("") : '<tr><td colspan="6"><div class="empty-state">Nessuna azienda trovata.</div></td></tr>') + '</tbody></table></div></section>';
-    document.getElementById("business-search").addEventListener("input", function (event) { searchQuery = event.target.value; renderBusinesses(); var input = document.getElementById("business-search"); input.focus(); input.setSelectionRange(searchQuery.length, searchQuery.length); });
+    document.getElementById("business-search").addEventListener("input", function (event) { businessSearch = event.target.value; renderBusinesses(); var input = document.getElementById("business-search"); input.focus(); input.setSelectionRange(businessSearch.length, businessSearch.length); });
   }
 
   function modalFrame(title, description, body, actions) {
@@ -488,8 +413,8 @@
       if (!Number.isFinite(price) || price <= 0) return toast("Prezzo non valido", "Inserisci un prezzo maggiore di zero.");
       listings.unshift({ id: "M-" + String(listings.length + 1).padStart(2, "0"), name: String(form.get("name")).trim(), description: String(form.get("description")).trim(), category: String(form.get("category")), seller: String(form.get("seller")).trim(), price: price, currency: String(form.get("currency")), mark: "◇", tone: "" });
       modal.close();
-      searchQuery = "";
-      activeFilter = "tutti";
+      marketSearch = "";
+      marketFilter = "tutti";
       toast("Offerta pubblicata", "È visibile nel marketplace finché la pagina resta aperta.");
       setPage("marketplace");
     });
@@ -560,9 +485,6 @@
     else if (action === "new-listing") newListing();
     else if (action === "new-empire") newEmpire();
     else if (action === "new-business") newBusiness();
-    else if (action === "role-issue") openRoleIssueForm();
-    else if (action === "role-tax") openRoleTaxForm();
-    else if (action === "role-logout") { activeRole = null; renderRole(); toast("Sessione demo chiusa", "Seleziona un codice per aprire un’altra area."); }
     else if (action === "export-ledger") exportLedgerCsv();
     else if (action === "close-modal") modal.close();
     else if (action === "buy-listing") {
@@ -587,7 +509,7 @@
   overlay.addEventListener("click", closeMenu);
   document.getElementById("quick-action").addEventListener("click", function () { newTransaction(""); });
   document.getElementById("help-button").addEventListener("click", function () {
-    showInfo("Informazioni sulla demo", "Bank Empire · versione 0.4", '<div class="callout"><strong>Che cosa funziona:</strong> navigazione, filtri, schede di imperi e aziende, offerte di marketplace e registrazione di movimenti simulati.<br><br><strong>Che cosa non è collegato:</strong> autenticazione, database condiviso, pagamenti, inviti, verifica dei ruoli e tassi di cambio reali.<br><br><strong>Regola fondamentale:</strong> il browser non dovrà mai essere la fonte autorevole per autorizzare una transazione economica.</div>');
+    showInfo("Informazioni sulla demo", "Bank Empire · versione 0.5", '<div class="callout"><strong>Che cosa funziona:</strong> navigazione, filtri, schede di imperi e aziende, offerte di marketplace e registrazione di movimenti simulati.<br><br><strong>Che cosa non è collegato:</strong> autenticazione, database condiviso, pagamenti, inviti, verifica dei ruoli e tassi di cambio reali.<br><br><strong>Regola fondamentale:</strong> il browser non dovrà mai essere la fonte autorevole per autorizzare una transazione economica.</div>');
   });
   document.getElementById("profile-button").addEventListener("click", function () {
     showInfo("Profilo demo", "Sessione locale non autenticata", '<div class="currency-row"><div class="currency-main"><strong>Utente</strong><small>Samix</small></div></div><div class="currency-row"><div class="currency-main"><strong>Ruolo mostrato</strong><small>Admin Supremo · solo etichetta demo</small></div></div><p class="modal-note">Questa schermata non autentica l’utente e non concede permessi reali.</p>');
