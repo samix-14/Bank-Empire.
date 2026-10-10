@@ -1,4 +1,4 @@
-/* Bank Empire 0.2 - frontend dimostrativo.
+/* Bank Empire 0.4 - frontend dimostrativo.
    I dati vivono soltanto in memoria. Nessuna transazione reale o autenticazione. */
 (function () {
   "use strict";
@@ -16,6 +16,7 @@
   var activeFilter = "tutti";
   var searchQuery = "";
   var transactionId = 8;
+  var activeRole = null;
 
   var currencies = {
     SOL: { name: "Solari", symbol: "S", className: "symbol-gold", rate: 1, note: "Valuta di riferimento demo" },
@@ -67,7 +68,8 @@
     ledger: { title: "Libro mastro", eyebrow: "REGISTRO DELLE OPERAZIONI", description: "Movimenti dimostrativi con importi, riferimenti e stato." },
     marketplace: { title: "Marketplace", eyebrow: "SCAMBI TRA IMPERI", description: "Risorse, servizi e licenze messi in vendita dagli operatori." },
     empires: { title: "Imperi", eyebrow: "TERRITORI E AMMINISTRAZIONI", description: "Panoramica delle economie e delle regole fiscali dei vari imperi." },
-    businesses: { title: "Aziende", eyebrow: "ATTIVITÀ ECONOMICHE", description: "Attività, proprietari e ricavi dimostrativi." }
+    businesses: { title: "Aziende", eyebrow: "ATTIVITÀ ECONOMICHE", description: "Attività, proprietari e ricavi dimostrativi." },
+    role: { title: "Ruolo", eyebrow: "AREA RISERVATA DEMO", description: "Accedi all’interfaccia dimostrativa del tuo ruolo per vedere le azioni disponibili." }
   };
 
   function escapeHtml(value) {
@@ -212,6 +214,7 @@
     else if (page === "marketplace") renderMarketplace();
     else if (page === "empires") renderEmpires();
     else if (page === "businesses") renderBusinesses();
+    else if (page === "role") renderRole();
     persistState();
   }
 
@@ -278,16 +281,100 @@
   }
 
   function renderWallet() {
+    var recent = transactions.slice(0, 5);
     pageContent.innerHTML = '<div class="grid stats-grid">' +
       statCard("Portafogli attivi", String(wallets.length), "◈", "Uno per valuta", "neutral") +
       statCard("Valute registrate", String(Object.keys(currencies).length), "◎", "Tutte dimostrative", "neutral") +
       statCard("Ultimo movimento", transactions[0] ? escapeHtml(transactions[0].id) : "—", "↻", "Riferimento interno demo", "neutral") +
       statCard("Valore convertito", "Non calcolato", "∑", "Evita somme tra valute diverse", "neutral") +
-      '</div><section class="panel"><div class="panel-header"><div><h2 class="panel-title">Saldi disponibili</h2><p class="panel-subtitle">Importi sempre espressi nella valuta del rispettivo portafoglio</p></div><button class="button button-primary button-small" data-action="new-transaction">＋ Trasferisci</button></div><div class="panel-body">' +
+      '</div><section class="panel"><div class="panel-header"><div><h2 class="panel-title">Saldi disponibili</h2><p class="panel-subtitle">Scegli una valuta e avvia un movimento dal portafoglio corrispondente</p></div><button class="button button-primary button-small" data-action="new-transaction">＋ Nuova transazione</button></div><div class="panel-body">' +
       wallets.map(function (wallet) {
         var currency = currencies[wallet.currency];
-        return '<div class="currency-row"><span class="currency-symbol ' + currency.className + '">' + currency.symbol + '</span><div class="currency-main"><strong>' + currency.name + " (" + wallet.currency + ')</strong><small>' + wallet.label + '</small><small>' + currency.note + '</small></div><div class="currency-balance"><strong style="font-size:16px">' + money(wallet.balance, wallet.currency) + '</strong><small>' + wallet.change + ' variazione simulata</small><button class="text-link" data-action="new-transaction" data-currency="' + wallet.currency + '">Invia da qui ↗</button></div></div>';
-      }).join("") + '</div></section><div class="callout" style="margin-top:16px"><strong>Scelta progettuale:</strong> nella versione reale i trasferimenti dovranno essere convalidati lato server, applicati in modo atomico e registrati nel libro mastro. Questa demo modifica solo dati temporanei in memoria.</div>';
+        return '<div class="currency-row"><span class="currency-symbol ' + currency.className + '">' + currency.symbol + '</span><div class="currency-main"><strong>' + currency.name + " (" + wallet.currency + ')</strong><small>' + escapeHtml(wallet.label) + '</small><small>' + currency.note + '</small></div><div class="currency-balance"><strong style="font-size:16px">' + money(wallet.balance, wallet.currency) + '</strong><small>' + wallet.change + ' variazione simulata</small><button class="text-link" data-action="new-transaction" data-currency="' + wallet.currency + '">Transazione in ' + wallet.currency + ' ↗</button></div></div>';
+      }).join("") + '</div></section><section class="panel" style="margin-top:16px"><div class="panel-header"><div><h2 class="panel-title">Movimenti recenti</h2><p class="panel-subtitle">Puoi registrare un’uscita o un’entrata dimostrativa dalla valuta scelta</p></div><button class="button button-secondary button-small" data-action="page" data-page="ledger">Apri libro mastro</button></div><div class="panel-body"><div class="movement-list">' +
+      (recent.length ? recent.map(movementMarkup).join("") : '<div class="empty-state">Nessun movimento registrato.</div>') +
+      '</div></div></section><div class="callout" style="margin-top:16px"><strong>Nota:</strong> le transazioni di questa versione aggiornano solo il saldo locale e il libro mastro del browser. Non trasferiscono fondi a un altro account e non sono sincronizzate tra utenti.</div>';
+  }
+
+  function renderRole() {
+    if (!activeRole) {
+      pageContent.innerHTML = '<section class="panel role-panel"><div class="panel-header"><div><h2 class="panel-title">Accedi alla tua area ruolo</h2><p class="panel-subtitle">La password di demo cambia l’interfaccia mostrata, ma non costituisce autenticazione reale.</p></div><span class="role-mark">⚿</span></div><div class="panel-body"><form id="role-login-form" class="role-login-form"><div class="form-field"><label for="role-password">Password ruolo</label><input id="role-password" name="password" type="password" autocomplete="off" required placeholder="Inserisci il codice demo"></div><div class="modal-actions"><button class="button button-primary" type="submit">Apri area ruolo</button></div></form><div class="callout" style="margin-top:18px"><strong>Codici per provare la demo:</strong><br><code>demo-admin</code> · Admin Supremo<br><code>demo-impero</code> · Imperatore<br><code>demo-azienda</code> · Gestore azienda<br><br>Questi codici sono pubblici nel codice del prototipo. Non usarli come password vere.</div></div></section>';
+      document.getElementById("role-login-form").addEventListener("submit", function (event) {
+        event.preventDefault();
+        var password = String(new FormData(event.currentTarget).get("password") || "");
+        var roles = { "demo-admin": "Admin Supremo", "demo-impero": "Imperatore", "demo-azienda": "Gestore azienda" };
+        if (!roles[password]) {
+          toast("Codice non riconosciuto", "Usa uno dei codici dimostrativi indicati nella pagina.");
+          return;
+        }
+        activeRole = roles[password];
+        toast("Area ruolo aperta", "Interfaccia demo: " + activeRole + ".");
+        renderRole();
+      });
+      return;
+    }
+    var actions = "";
+    var summary = "";
+    if (activeRole === "Admin Supremo") {
+      summary = "Controllo generale della piattaforma, con funzioni dimostrative per l’emissione monetaria.";
+      actions = '<button class="button button-primary" data-action="role-issue">＋ Registra emissione demo</button><button class="button button-secondary" data-action="new-empire">Crea impero demo</button><button class="button button-secondary" data-action="new-business">Registra azienda demo</button>';
+    } else if (activeRole === "Imperatore") {
+      summary = "Gestione fiscale degli imperi e accesso agli strumenti amministrativi dimostrativi.";
+      actions = '<button class="button button-primary" data-action="role-tax">Modifica aliquota fiscale</button><button class="button button-secondary" data-action="new-empire">Crea impero demo</button>';
+    } else {
+      summary = "Strumenti dimostrativi per registrare e consultare attività commerciali.";
+      actions = '<button class="button button-primary" data-action="new-business">＋ Registra azienda</button><button class="button button-secondary" data-action="page" data-page="marketplace">Apri marketplace</button>';
+    }
+    pageContent.innerHTML = '<section class="panel role-panel"><div class="panel-header"><div><h2 class="panel-title">Area: ' + escapeHtml(activeRole) + '</h2><p class="panel-subtitle">' + escapeHtml(summary) + '</p></div><button class="button button-quiet button-small" data-action="role-logout">Esci dal ruolo</button></div><div class="panel-body"><div class="role-actions">' + actions + '</div><div class="callout" style="margin-top:20px"><strong>Ambiente dimostrativo.</strong> Le azioni aggiornano dati locali del browser. I permessi non sono verificati da un server e non devono essere considerati sicuri.</div></div></section>';
+  }
+
+  function openRoleIssueForm() {
+    if (activeRole !== "Admin Supremo") return;
+    var options = wallets.map(function (wallet) { return '<option value="' + wallet.currency + '">' + wallet.currency + ' · ' + currencies[wallet.currency].name + '</option>'; }).join("");
+    var body = '<form id="role-issue-form"><div class="form-grid"><div class="form-field"><label for="issue-currency">Valuta demo</label><select id="issue-currency" name="currency">' + options + '</select></div><div class="form-field"><label for="issue-amount">Importo da emettere</label><input id="issue-amount" name="amount" type="number" min="0.01" max="100000000" step="0.01" required></div></div><p class="modal-note">Questa funzione aggiunge un movimento locale di prova, non crea nuova valuta reale.</p><div class="modal-actions"><button type="button" class="button button-quiet" data-action="close-modal">Annulla</button><button class="button button-primary" type="submit">Registra emissione demo</button></div></form>';
+    modalFrame("Emissione monetaria demo", "Solo per testare l’interfaccia Admin Supremo.", body, "");
+    document.getElementById("role-issue-form").addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (activeRole !== "Admin Supremo") return;
+      var form = new FormData(event.currentTarget);
+      var amount = Number(form.get("amount"));
+      var currency = String(form.get("currency"));
+      var wallet = wallets.find(function (item) { return item.currency === currency; });
+      if (!wallet || !Number.isFinite(amount) || amount <= 0) {
+        toast("Importo non valido", "Inserisci un importo positivo.");
+        return;
+      }
+      wallet.balance += amount;
+      transactionId += 1;
+      transactions.unshift({ id: "BE-" + String(transactionId).padStart(3, "0"), title: "Emissione monetaria demo", detail: "Admin Supremo", date: "Adesso · demo", amount: amount, currency: currency, type: "entrata", status: "Completata", icon: "↙" });
+      persistState();
+      modal.close();
+      toast("Emissione demo registrata", "Saldo locale aggiornato per " + currency + ".");
+      renderRole();
+    });
+  }
+
+  function openRoleTaxForm() {
+    if (activeRole !== "Imperatore" && activeRole !== "Admin Supremo") return;
+    var options = empires.map(function (empire, index) { return '<option value="' + index + '">' + escapeHtml(empire.name) + ' · ora ' + empire.tax + '%</option>'; }).join("");
+    var body = '<form id="role-tax-form"><div class="form-field"><label for="tax-empire">Impero</label><select id="tax-empire" name="empire">' + options + '</select></div><div class="form-field" style="margin-top:12px"><label for="tax-value">Nuova aliquota (%)</label><input id="tax-value" name="tax" type="number" min="0" max="100" step="0.1" required></div><div class="modal-actions"><button type="button" class="button button-quiet" data-action="close-modal">Annulla</button><button class="button button-primary" type="submit">Salva demo</button></div></form>';
+    modalFrame("Gestione fiscale demo", "Le modifiche restano nel browser corrente.", body, "");
+    document.getElementById("role-tax-form").addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (activeRole !== "Imperatore" && activeRole !== "Admin Supremo") return;
+      var form = new FormData(event.currentTarget);
+      var index = Number(form.get("empire"));
+      var tax = Number(form.get("tax"));
+      if (!Number.isInteger(index) || !empires[index] || !Number.isFinite(tax) || tax < 0 || tax > 100) {
+        toast("Dati non validi", "L’aliquota deve essere compresa tra 0 e 100.");
+        return;
+      }
+      empires[index].tax = tax;
+      persistState();
+      modal.close();
+      toast("Aliquota aggiornata", "Modifica dimostrativa salvata localmente.");
+      renderRole();
+    });
   }
 
   function filteredTransactions() {
@@ -473,6 +560,9 @@
     else if (action === "new-listing") newListing();
     else if (action === "new-empire") newEmpire();
     else if (action === "new-business") newBusiness();
+    else if (action === "role-issue") openRoleIssueForm();
+    else if (action === "role-tax") openRoleTaxForm();
+    else if (action === "role-logout") { activeRole = null; renderRole(); toast("Sessione demo chiusa", "Seleziona un codice per aprire un’altra area."); }
     else if (action === "export-ledger") exportLedgerCsv();
     else if (action === "close-modal") modal.close();
     else if (action === "buy-listing") {
