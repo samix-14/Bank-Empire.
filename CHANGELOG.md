@@ -1,46 +1,37 @@
+# Changelog
+
+## 0.6
+
+- Ridotta l'app alle sole pagine Portafoglio, Imperi e Libro mastro.
+- Rimossi dalla navigazione Panoramica, Marketplace, Aziende e Ruolo.
+- Rimosso il pulsante globale "Nuova operazione": i trasferimenti si creano soltanto nel Portafoglio.
+- Separati i conti personali dei cittadini dai fondi governativi degli imperi.
+- Calcolato il patrimonio complessivo per valuta come saldi personali dei cittadini associati all'impero più fondi governativi della stessa valuta.
+- Implementati trasferimenti demo tra conti personali nella stessa valuta, con controllo importo, causale e saldo sufficiente.
+- Registrate le transazioni nel Libro mastro e salvati localmente saldi e movimenti.
+- Semplificata l'interfaccia per privilegiare il funzionamento rispetto alla grafica.
+- Nessun tasso di cambio, commissione, transazione governativa, login o database condiviso introdotto.
+
 ## 0.5
 
-- Separati ricerca e filtri del Libro mastro, Marketplace e Aziende per evitare che i filtri di una pagina influenzino le altre.
-- Lasciata la pagina Ruolo come segnaposto: ruoli, password e azioni saranno definiti dall’utente, senza presumere permessi.
-- Corretto l’export CSV affinché gli importi numerici negativi restino numeri e le celle testuali continuino ad avere una protezione basilare contro formule CSV.
+- Separati ricerca e filtri del Libro mastro, Marketplace e Aziende.
+- Lasciata la pagina Ruolo come segnaposto.
+- Corretto l'export CSV degli importi negativi.
 - Aggiornate le etichette di versione e la documentazione.
 
 ## 0.4
 
-- Aggiunta la pagina Ruolo con interfacce demo per Admin Supremo, Imperatore e Gestore azienda.
-- Aggiunte azioni locali demo: emissione monetaria, modifica aliquota fiscale, creazione di imperi e aziende.
-- Aggiunta la possibilità di uscire dall’area ruolo e scegliere un’altra interfaccia.
-- Riorganizzata la pagina Portafogli per evidenziare transazioni, saldi e movimenti recenti per valuta.
-- Aggiornati intestazioni, avvisi e documentazione alla versione 0.4.
-- Chiarito che i codici ruolo sono pubblici e non costituiscono autenticazione o autorizzazioni sicure.
-- La pagina guida completa è rinviata a dopo la versione 1.0.
+- Aggiunta la pagina Ruolo con interfacce demo e azioni locali, poi rimosse nella versione 0.6 perché non definite dall'utente.
+- Riorganizzata la pagina Portafogli per evidenziare saldi e movimenti demo.
 
 ## 0.3
 
-- Salvataggio locale dei dati dimostrativi tra ricaricamenti, quando il browser consente l'uso di localStorage.
-- Ripristino con controlli di forma e limiti alle collezioni salvate.
-- Esportazione CSV del libro mastro rispettando ricerca e filtri attivi.
-- Protezione basilare contro formule CSV nelle celle testuali esportate.
-- Chiarito che la persistenza locale non equivale a un database condiviso o sicuro.
-
-# Changelog
+- Aggiunta la persistenza locale e l'esportazione CSV del libro mastro.
 
 ## 0.2
 
-- Prima interfaccia navigabile per Bank Empire.
-- Dashboard con statistiche dimostrative, grafico illustrativo e movimenti recenti.
-- Portafogli separati per SOL, AUR e NVC, senza sommare valute diverse in un patrimonio fuorviante.
-- Libro mastro con ricerca e filtri per entrate e uscite.
-- Marketplace con ricerca, categorie e creazione locale di offerte.
-- Schede di imperi con valuta associata e aliquota fiscale configurabile nella demo.
-- Registro aziende con proprietà, settore e ricavi dimostrativi.
-- Moduli locali per registrare movimenti, imperi e aziende.
-- Layout responsive e navigazione mobile.
-- Avviso esplicito: dati in memoria, nessun backend, autenticazione o pagamento reale.
+- Prima interfaccia navigabile con dashboard, portafogli, libro mastro, marketplace, imperi e aziende.
 
-## Limiti noti
+## 0.1
 
-- I dati si perdono al ricaricamento della pagina.
-- Le autorizzazioni mostrate non sono sicurezza reale.
-- Non sono implementati database, inviti, login, emissione di valute, tassi di cambio affidabili o transazioni server-side.
-- Prima di gestire economie reali servono backend, controlli di ruolo, operazioni atomiche e ledger immutabile.
+- Scheletro iniziale del progetto.
