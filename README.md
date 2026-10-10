@@ -1,24 +1,36 @@
 # Bank Empire
 
-Piattaforma web per un'economia roleplay composta da imperi, valute, portafogli, aziende, marketplace e libro mastro pubblico.
+Prototipo web per un'economia multivaluta. La versione 0.6 riparte da un nucleo ridotto e dà priorità al funzionamento.
+
+## Pagine attuali
+
+- **Portafoglio**: saldi del conto personale attivo per SOL, AUR e NVC; trasferimenti verso altri conti personali demo; controllo del saldo; movimenti recenti.
+- **Imperi**: informazioni sugli imperi demo, fondi governativi e patrimonio complessivo per valuta.
+- **Libro mastro**: elenco delle transazioni create dal Portafoglio.
+
+## Struttura dei file
+
+- `index.html`: struttura e navigazione delle tre pagine.
+- `style.css`: stile responsive essenziale.
+- `script.js`: dati demo, trasferimenti, controlli, calcolo dei totali, libro mastro e persistenza locale.
+- `README.md`: documentazione del progetto.
+- `CHANGELOG.md`: cronologia delle versioni.
+
+## Regole del prototipo 0.6
+
+- Un conto personale appartiene a un cittadino.
+- I fondi governativi sono memorizzati separatamente e non fanno parte del conto personale del leader.
+- Il patrimonio dell'impero è mostrato **per ciascuna valuta** come somma dei saldi personali dei cittadini associati all'impero più i fondi governativi nella stessa valuta.
+- Non viene applicato alcun cambio valuta: non esiste ancora una formula concordata.
+- Le transazioni implementate sono trasferimenti tra conti personali nella stessa valuta, senza commissioni. I fondi governativi non sono ancora destinatari o mittenti di transazioni.
+
+## Avvio e limiti
+
+Apri `index.html` in un browser moderno. Non servono dipendenze esterne.
+
+È un prototipo frontend: i dati sono salvati in `localStorage` su questo browser. Non esistono login, backend o database condiviso, quindi più utenti non possono usare un'economia condivisa reale. Gli account e gli importi iniziali sono dati dimostrativi, non dati verificati.
 
 ## Versioni
 
-Ogni versione ha il proprio branch numerato: \`0.1\`, \`0.2\`, \`0.3\` e così via.
-
-- **0.2**: prototipo responsive con dashboard, portafogli multivaluta, libro mastro, marketplace, imperi e aziende.
-- **0.3**: persistenza locale dei dati demo e esportazione CSV del libro mastro.
-- **0.4**: pagina Ruolo provvisoria e portafogli con operazioni demo.
-- **0.5**: ricerche e filtri separati per pagina; pagina Ruolo lasciata in attesa delle specifiche dell’utente; correzione dell’esportazione CSV degli importi negativi.
-
-## Avvio
-
-Apri \`index.html\` in un browser moderno. Il frontend usa solo HTML, CSS e JavaScript vanilla e non richiede dipendenze esterne.
-
-## Limiti importanti
-
-Queste versioni sono prototipi frontend. Non hanno autenticazione sicura, database condiviso, gestione reale dei permessi o pagamenti. I dati delle versioni 0.3 e 0.4 vengono salvati nel browser corrente e non sono sincronizzati tra utenti o dispositivi.
-
-La pagina Ruolo è un segnaposto finché non saranno definiti ruoli, password e autorizzazioni. La guida completa del sito è pianificata dopo la versione 1.0.
-
-Prima di gestire un'economia condivisa, il backend dovrà convalidare ruoli e operazioni, eseguire trasferimenti in modo atomico e mantenere un libro mastro append-only. Le correzioni dovranno essere registrazioni compensative collegate, non modifiche retroattive delle transazioni.
+- **0.1–0.5**: prototipi precedenti con altre sezioni dimostrative.
+- **0.6**: riduzione a Portafoglio, Imperi e Libro mastro; separazione dei conti personali dai fondi governativi; trasferimenti locali con validazione di base.
