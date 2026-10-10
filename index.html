@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1020">
+  <meta name="description" content="Bank Empire, dashboard dimostrativa per un'economia roleplay multivaluta.">
+  <title>Bank Empire · Versione 0.2</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar" aria-label="Navigazione principale">
+      <a class="brand" href="#dashboard" aria-label="Bank Empire, dashboard">
+        <span class="brand-mark" aria-hidden="true">B<span>E</span></span>
+        <span class="brand-copy"><strong>Bank Empire</strong><small>ECONOMY NETWORK</small></span>
+      </a>
+      <div class="workspace-label">WORKSPACE</div>
+      <nav class="nav-list">
+        <a class="nav-link active" href="#dashboard" data-page="dashboard"><span class="nav-icon">⌂</span><span>Panoramica</span></a>
+        <a class="nav-link" href="#wallet" data-page="wallet"><span class="nav-icon">◈</span><span>Portafogli</span><span class="nav-count">3</span></a>
+        <a class="nav-link" href="#ledger" data-page="ledger"><span class="nav-icon">≋</span><span>Libro mastro</span></a>
+        <a class="nav-link" href="#marketplace" data-page="marketplace"><span class="nav-icon">▦</span><span>Marketplace</span></a>
+        <a class="nav-link" href="#empires" data-page="empires"><span class="nav-icon">♜</span><span>Imperi</span></a>
+        <a class="nav-link" href="#businesses" data-page="businesses"><span class="nav-icon">▤</span><span>Aziende</span></a>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="demo-note"><span class="status-dot"></span><div><strong>Modalità demo</strong><small>Dati di esempio, nessun denaro reale</small></div></div>
+        <button class="profile-mini" type="button" id="profile-button">
+          <span class="avatar">S</span><span class="profile-text"><strong>Samix</strong><small>Admin Supremo</small></span><span class="profile-menu">•••</span>
+        </button>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <button class="icon-button menu-toggle" id="menu-toggle" aria-label="Apri menu" aria-expanded="false">☰</button>
+        <div class="breadcrumb"><span>Bank Empire</span><span class="crumb-slash">/</span><strong id="breadcrumb-current">Panoramica</strong></div>
+        <div class="topbar-actions">
+          <span class="environment-pill"><span class="status-dot"></span> Ambiente demo</span>
+          <button class="icon-button" id="help-button" aria-label="Informazioni sulla demo">?</button>
+          <button class="avatar top-avatar" id="top-profile" aria-label="Profilo Samix">S</button>
+        </div>
+      </header>
+
+      <div class="page-wrap">
+        <section class="page-heading">
+          <div><div class="eyebrow" id="page-eyebrow">CENTRO DI CONTROLLO</div><h1 id="page-title">Panoramica</h1><p id="page-description">La tua economia, senza dover aprire dodici fogli di calcolo.</p></div>
+          <div class="heading-actions"><span class="date-chip" id="current-date">DATI SIMULATI</span><button class="button button-primary" id="quick-action"><span aria-hidden="true">＋</span> Nuova operazione</button></div>
+        </section>
+        <div class="demo-banner"><span class="banner-icon">i</span><p><strong>Prototipo 0.2.</strong> Tutti i saldi e i movimenti sono fittizi e salvati solo in questa sessione del browser. Non inserire dati personali o credenziali reali.</p><button class="banner-close" id="banner-close" aria-label="Nascondi avviso">×</button></div>
+        <section id="page-content" aria-live="polite"></section>
+        <footer class="app-footer"><span>Bank Empire <b>·</b> versione 0.2</span><span>Un prototipo per un'economia roleplay <span class="footer-star">✦</span></span></footer>
+      </div>
+    </main>
+  </div>
+  <div class="mobile-overlay" id="mobile-overlay"></div>
+  <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
+  <dialog class="modal" id="modal" aria-labelledby="modal-title"><div id="modal-content"></div></dialog>
+</body>
+</html>
