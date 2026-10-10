@@ -1,2 +1,3 @@
-# Bank-Empire.
-Sistema economico per gli imperi del roleplay.
+# Bank Empire
+
+Piattaforma roleplay per imperi, valute, portafogli, aziende, marketplace e libro mastro.
