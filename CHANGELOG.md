@@ -1,3 +1,11 @@
+## 0.3
+
+- Salvataggio locale dei dati dimostrativi tra ricaricamenti, quando il browser consente l'uso di localStorage.
+- Ripristino con controlli di forma e limiti alle collezioni salvate.
+- Esportazione CSV del libro mastro rispettando ricerca e filtri attivi.
+- Protezione basilare contro formule CSV nelle celle testuali esportate.
+- Chiarito che la persistenza locale non equivale a un database condiviso o sicuro.
+
 # Changelog
 
 ## 0.2
