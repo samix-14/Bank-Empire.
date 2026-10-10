@@ -96,6 +96,101 @@
     return '<span class="entity-mark ' + escapeHtml(tone || "") + '">' + escapeHtml(mark) + "</span>";
   }
 
+  var STORAGE_KEY = "bank-empire-demo-v03";
+
+  function loadPersistedState() {
+    try {
+      var raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      var saved = JSON.parse(raw);
+      if (!saved || saved.version !== 1) return;
+      if (Array.isArray(saved.wallets) && saved.wallets.length === wallets.length &&
+          saved.wallets.every(function (item) { return item && currencies[item.currency] && Number.isFinite(Number(item.balance)) && typeof item.label === "string"; })) {
+        wallets = saved.wallets.map(function (item) {
+          var original = wallets.find(function (wallet) { return wallet.currency === item.currency; });
+          return { currency: item.currency, balance: Number(item.balance), change: original.change, label: original.label };
+        });
+      }
+      if (Array.isArray(saved.transactions) && saved.transactions.every(function (item) {
+        return item && typeof item.id === "string" && typeof item.title === "string" && typeof item.detail === "string" &&
+          typeof item.date === "string" && currencies[item.currency] && Number.isFinite(Number(item.amount)) &&
+          (item.type === "entrata" || item.type === "uscita") && typeof item.status === "string";
+      })) {
+        transactions = saved.transactions.slice(0, 500).map(function (item) {
+          return { id: item.id, title: item.title, detail: item.detail, date: item.date, amount: Number(item.amount),
+            currency: item.currency, type: item.type, status: item.status, icon: item.type === "entrata" ? "↙" : "↗" };
+        });
+      }
+      if (Array.isArray(saved.empires) && saved.empires.every(function (item) {
+        return item && typeof item.name === "string" && typeof item.leader === "string" && currencies[item.currency] &&
+          Number.isFinite(Number(item.citizens)) && Number.isFinite(Number(item.tax)) && Number(item.tax) >= 0 && Number(item.tax) <= 100;
+      })) {
+        empires = saved.empires.slice(0, 100).map(function (item) {
+          return { name: item.name, leader: item.leader, currency: item.currency, citizens: Number(item.citizens),
+            tax: Number(item.tax), mark: typeof item.mark === "string" ? item.mark : "♜",
+            tone: "", status: typeof item.status === "string" ? item.status : "Attivo" };
+        });
+      }
+      if (Array.isArray(saved.businesses) && saved.businesses.every(function (item) {
+        return item && typeof item.name === "string" && typeof item.owner === "string" && typeof item.category === "string" &&
+          currencies[item.currency] && Number.isFinite(Number(item.revenue));
+      })) {
+        businesses = saved.businesses.slice(0, 200).map(function (item) {
+          return { name: item.name, owner: item.owner, category: item.category, revenue: Number(item.revenue),
+            currency: item.currency, status: typeof item.status === "string" ? item.status : "Operativa",
+            mark: typeof item.mark === "string" ? item.mark : "▤", tone: "" };
+        });
+      }
+      if (Array.isArray(saved.listings) && saved.listings.every(function (item) {
+        return item && typeof item.id === "string" && typeof item.name === "string" && typeof item.description === "string" &&
+          typeof item.seller === "string" && currencies[item.currency] && Number.isFinite(Number(item.price)) &&
+          ["Risorse", "Servizi", "Licenze"].indexOf(item.category) !== -1;
+      })) {
+        listings = saved.listings.slice(0, 300).map(function (item) {
+          return { id: item.id, name: item.name, description: item.description, seller: item.seller,
+            price: Number(item.price), currency: item.currency, category: item.category,
+            mark: typeof item.mark === "string" ? item.mark : "◇", tone: "" };
+        });
+      }
+    } catch (error) {
+      /* Storage disabilitato o dati locali non validi: la demo usa i valori iniziali. */
+    }
+  }
+
+  function persistState() {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        version: 1, wallets: wallets, transactions: transactions, empires: empires,
+        businesses: businesses, listings: listings
+      }));
+    } catch (error) {
+      /* La demo resta utilizzabile anche in navigazione privata o con storage bloccato. */
+    }
+  }
+
+  function csvSafe(value) {
+    var text = String(value === null || value === undefined ? "" : value);
+    if (/^[\\s]*[=+\\-@]/.test(text)) text = "'" + text;
+    return '"' + text.replace(/"/g, '""') + '"';
+  }
+
+  function exportLedgerCsv() {
+    var rows = [["Riferimento", "Operazione", "Controparte", "Data", "Valuta", "Importo", "Tipo", "Stato"]];
+    filteredTransactions().forEach(function (tx) {
+      rows.push([tx.id, tx.title, tx.detail, tx.date, tx.currency, tx.amount.toFixed(2), tx.type, tx.status]);
+    });
+    var csv = "\\uFEFF" + rows.map(function (row) { return row.map(csvSafe).join(";"); }).join("\\r\\n");
+    var url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    var link = document.createElement("a");
+    link.href = url;
+    link.download = "bank-empire-libro-mastro-demo.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    toast("Esportazione pronta", "Scaricato il CSV dei movimenti corrispondenti ai filtri attivi.");
+  }
+
   function setPage(page) {
     if (!pageMeta[page]) page = "dashboard";
     var meta = pageMeta[page];
@@ -117,6 +212,7 @@
     else if (page === "marketplace") renderMarketplace();
     else if (page === "empires") renderEmpires();
     else if (page === "businesses") renderBusinesses();
+    persistState();
   }
 
   function openPage(page) {
@@ -208,7 +304,7 @@
 
   function renderLedger() {
     var list = filteredTransactions();
-    pageContent.innerHTML = '<div class="section-heading"><div><h2>Registro completo</h2><p>' + list.length + ' operazioni corrispondenti · dati dimostrativi</p></div><button class="button button-primary" data-action="new-transaction">＋ Nuova operazione</button></div><section class="panel"><div class="panel-header"><div><h2 class="panel-title">Libro mastro</h2><p class="panel-subtitle">Ogni riga rappresenta un movimento simulato</p></div>' + badge("APPEND-ONLY · OBIETTIVO FUTURO", "blue") + '</div><div class="panel-body"><div class="toolbar"><label class="search-box"><input id="ledger-search" type="search" placeholder="Cerca operazione, riferimento..." value="' + escapeHtml(searchQuery) + '" aria-label="Cerca nel libro mastro"></label><select class="select-control" id="ledger-filter" aria-label="Filtra tipo di operazione"><option value="tutti">Tutti i movimenti</option><option value="entrata">Entrate</option><option value="uscita">Uscite</option></select></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Riferimento</th><th>Operazione</th><th>Data</th><th>Valuta</th><th>Importo</th><th>Stato</th></tr></thead><tbody id="ledger-rows">' + (list.length ? list.map(transactionRow).join("") : '<tr><td colspan="6"><div class="empty-state">Nessun movimento trovato. La ricerca non è telepatica, purtroppo.</div></td></tr>') + '</tbody></table></div></section><div class="callout" style="margin-top:16px"><strong>Integrità dei dati:</strong> qui le righe sono modificabili solo perché sono dati fittizi in memoria. Il sistema definitivo dovrà impedire la modifica diretta delle transazioni e correggere gli errori con registrazioni compensative collegate.</div>';
+    pageContent.innerHTML = '<div class="section-heading"><div><h2>Registro completo</h2><p>' + list.length + ' operazioni corrispondenti · dati dimostrativi</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="button button-secondary" data-action="export-ledger">Esporta CSV</button><button class="button button-primary" data-action="new-transaction">＋ Nuova operazione</button></div></div><section class="panel"><div class="panel-header"><div><h2 class="panel-title">Libro mastro</h2><p class="panel-subtitle">Ogni riga rappresenta un movimento simulato</p></div>' + badge("APPEND-ONLY · OBIETTIVO FUTURO", "blue") + '</div><div class="panel-body"><div class="toolbar"><label class="search-box"><input id="ledger-search" type="search" placeholder="Cerca operazione, riferimento..." value="' + escapeHtml(searchQuery) + '" aria-label="Cerca nel libro mastro"></label><select class="select-control" id="ledger-filter" aria-label="Filtra tipo di operazione"><option value="tutti">Tutti i movimenti</option><option value="entrata">Entrate</option><option value="uscita">Uscite</option></select></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Riferimento</th><th>Operazione</th><th>Data</th><th>Valuta</th><th>Importo</th><th>Stato</th></tr></thead><tbody id="ledger-rows">' + (list.length ? list.map(transactionRow).join("") : '<tr><td colspan="6"><div class="empty-state">Nessun movimento trovato. La ricerca non è telepatica, purtroppo.</div></td></tr>') + '</tbody></table></div></section><div class="callout" style="margin-top:16px"><strong>Integrità dei dati:</strong> qui le righe sono modificabili solo perché sono dati fittizi in memoria. Il sistema definitivo dovrà impedire la modifica diretta delle transazioni e correggere gli errori con registrazioni compensative collegate.</div>';
     var filter = document.getElementById("ledger-filter");
     var search = document.getElementById("ledger-search");
     filter.value = activeFilter;
@@ -377,6 +473,7 @@
     else if (action === "new-listing") newListing();
     else if (action === "new-empire") newEmpire();
     else if (action === "new-business") newBusiness();
+    else if (action === "export-ledger") exportLedgerCsv();
     else if (action === "close-modal") modal.close();
     else if (action === "buy-listing") {
       var item = listings.find(function (listing) { return listing.id === actionElement.getAttribute("data-id"); });
@@ -413,6 +510,7 @@
   document.addEventListener("keydown", function (event) { if (event.key === "Escape") closeMenu(); });
   window.addEventListener("hashchange", function () { setPage(currentPage()); });
 
+  loadPersistedState();
   if (!window.location.hash || !pageMeta[window.location.hash.slice(1)]) window.history.replaceState(null, "", "#dashboard");
   setPage(currentPage());
 })();
