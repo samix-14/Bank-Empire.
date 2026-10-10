@@ -43,7 +43,7 @@
           Array.isArray(saved.transactions) && Number.isInteger(saved.nextTransactionId) &&
           saved.accounts.every(function (a) { return a && typeof a.id === "string" && typeof a.name === "string" && a.balances && Object.keys(currencies).every(function (c) { return Number.isFinite(a.balances[c]) && a.balances[c] >= 0; }); }) &&
           saved.empires.every(function (e) { return e && typeof e.id === "string" && typeof e.name === "string" && e.governmentFunds && Object.keys(currencies).every(function (c) { return Number.isFinite(e.governmentFunds[c]) && e.governmentFunds[c] >= 0; }); }) &&
-          saved.transactions.every(function (t) { return t && typeof t.id === "string" && typeof t.fromId === "string" && typeof t.toId === "string" && currencies[t.currency] && Number.isFinite(t.amount) && t.amount > 0; })) {
+          saved.transactions.every(function (t) { return t && typeof t.id === "string" && typeof t.fromId === "string" && typeof t.toId === "string" && saved.accounts.some(function (a) { return a.id === t.fromId; }) && saved.accounts.some(function (a) { return a.id === t.toId; }) && currencies[t.currency] && Number.isFinite(t.amount) && t.amount > 0; })) {
         return saved;
       }
     } catch (error) { /* Se lo storage non è disponibile o è invalido, usa i dati iniziali. */ }
@@ -114,7 +114,7 @@
     var amount = Number(form.elements.amount.value);
     var description = form.elements.description.value.trim();
     if (!to || to.id === from.id) return showToast("Seleziona un destinatario diverso dal mittente.");
-    if (!currencies[currency] || !Number.isFinite(amount) || amount <= 0 || Math.round(amount * 100) !== amount * 100) return showToast("Inserisci un importo valido con massimo due decimali.");
+    if (!currencies[currency] || !Number.isFinite(amount) || amount <= 0 || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.0000001) return showToast("Inserisci un importo valido con massimo due decimali.");
     if (!description) return showToast("Inserisci una causale.");
     if (from.balances[currency] + 0.000001 < amount) return showToast("Saldo insufficiente per questa valuta.");
     // Applica entrambe le variazioni solo dopo aver superato tutti i controlli.
