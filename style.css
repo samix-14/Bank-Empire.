@@ -267,3 +267,11 @@ h1 { margin: 0; font-size: clamp(27px, 3vw, 35px); line-height: 1.12; letter-spa
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+.role-panel { overflow: hidden; }
+.role-mark { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid #a57e3d66; border-radius: 12px; background: #e9bd6810; color: var(--gold); font-size: 22px; }
+.role-login-form { max-width: 520px; }
+.role-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.role-actions .button { min-height: 42px; }
+.role-login-form input { width: 100%; min-height: 42px; padding: 0 12px; border: 1px solid #303b55; border-radius: 9px; background: #0e1525; color: var(--text); }
+.role-login-form input:focus, .form-field input:focus, .form-field select:focus { outline: 2px solid #d9ae5d77; outline-offset: 1px; }
+@media (max-width: 600px) { .role-actions { display: grid; grid-template-columns: 1fr; } .role-actions .button { width: 100%; } }
