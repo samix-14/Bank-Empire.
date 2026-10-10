@@ -1,175 +1,297 @@
-/* Bank Empire 0.6: prototipo locale. Nessun login o database condiviso. */
+/* Bank Empire 0.7: autenticazione e database condiviso Supabase. */
 (function () {
   "use strict";
 
-  var STORAGE_KEY = "bank-empire-demo-v06";
+  var SUPABASE_URL = "https://iprquijkhvugvzfjvibe.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_5bUbjJ6LpSyROlSq8F5xaA_omW2TGkL";
+  var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   var currencies = {
     SOL: { name: "Solari" },
     AUR: { name: "Aurei" },
     NVC: { name: "Novacrediti" }
   };
-
-  // Conti personali e fondi governativi sono entità separate.
-  var initialState = {
-    accounts: [
-      { id: "u-samix", name: "Samix (conto personale)", empireId: "auroria", balances: { SOL: 2840.50, AUR: 1250, NVC: 8300 } },
-      { id: "u-luca", name: "LucaNova (conto personale)", empireId: "nova", balances: { SOL: 350, AUR: 80, NVC: 2400 } },
-      { id: "u-vesper", name: "Vesper (conto personale)", empireId: "vesper", balances: { SOL: 1650, AUR: 120, NVC: 0 } },
-      { id: "u-aria", name: "Aria (conto personale)", empireId: "auroria", balances: { SOL: 90, AUR: 740, NVC: 50 } }
-    ],
-    empires: [
-      { id: "auroria", name: "Impero di Auroria", leader: "Samix", governmentFunds: { SOL: 500, AUR: 9000, NVC: 0 } },
-      { id: "nova", name: "Repubblica di Nova", leader: "LucaNova", governmentFunds: { SOL: 0, AUR: 0, NVC: 12000 } },
-      { id: "vesper", name: "Dominio di Vesper", leader: "Vesper", governmentFunds: { SOL: 6400, AUR: 0, NVC: 0 } }
-    ],
-    transactions: [],
-    nextTransactionId: 1
+  var empireNames = {
+    auroria: "Impero di Auroria",
+    nova: "Repubblica di Nova",
+    vesper: "Dominio di Vesper"
   };
-
-  var state = loadState();
-  var content = document.getElementById("page-content");
-  var toastRegion = document.getElementById("toast-region");
+  var currentUser = null;
+  var currentProfile = null;
   var pageTitles = {
-    wallet: { title: "Portafoglio", description: "Saldo del conto personale attivo, separato dai fondi dello Stato. Le valute restano separate." },
-    empires: { title: "Imperi", description: "Informazioni sugli imperi, fondi governativi e patrimonio complessivo per valuta. Nessun cambio valuta viene applicato." },
-    ledger: { title: "Libro mastro", description: "Registro delle transazioni effettuate nel prototipo." }
+    wallet: { title: "Portafoglio", description: "Il tuo saldo personale condiviso. Le valute restano separate e i fondi dello Stato non sono spendibili dal conto personale." },
+    empires: { title: "Imperi", description: "Fondi governativi e patrimonio complessivo per valuta, aggiornati dal database condiviso." },
+    ledger: { title: "Libro mastro", description: "Registro condiviso delle transazioni in cui sei mittente o destinatario." }
   };
 
-  function clone(value) { return JSON.parse(JSON.stringify(value)); }
-  function loadState() {
-    try {
-      var saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-      if (saved && saved.version === 1 && Array.isArray(saved.accounts) && Array.isArray(saved.empires) &&
-          Array.isArray(saved.transactions) && Number.isInteger(saved.nextTransactionId) &&
-          saved.accounts.every(function (a) { return a && typeof a.id === "string" && typeof a.name === "string" && a.balances && Object.keys(currencies).every(function (c) { return Number.isFinite(a.balances[c]) && a.balances[c] >= 0; }); }) &&
-          saved.empires.every(function (e) { return e && typeof e.id === "string" && typeof e.name === "string" && e.governmentFunds && Object.keys(currencies).every(function (c) { return Number.isFinite(e.governmentFunds[c]) && e.governmentFunds[c] >= 0; }); }) &&
-          saved.transactions.every(function (t) { return t && typeof t.id === "string" && typeof t.fromId === "string" && typeof t.toId === "string" && saved.accounts.some(function (a) { return a.id === t.fromId; }) && saved.accounts.some(function (a) { return a.id === t.toId; }) && currencies[t.currency] && Number.isFinite(t.amount) && t.amount > 0; })) {
-        return saved;
-      }
-    } catch (error) { /* Se lo storage non è disponibile o è invalido, usa i dati iniziali. */ }
-    return clone(initialState);
-  }
-  function persist() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        version: 1, accounts: state.accounts, empires: state.empires,
-        transactions: state.transactions, nextTransactionId: state.nextTransactionId
-      }));
-    } catch (error) { showToast("Salvataggio non riuscito: il browser potrebbe bloccare lo storage."); }
-  }
+  var content = document.getElementById("page-content");
+  var authPanel = document.getElementById("auth-panel");
+  var notice = document.getElementById("notice");
+  var nav = document.getElementById("main-nav");
+  var userLabel = document.getElementById("user-label");
+  var logoutButton = document.getElementById("logout-button");
+  var toastRegion = document.getElementById("toast-region");
+
   function esc(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
   function money(value, currency) {
-    return new Intl.NumberFormat("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value) + " " + currency;
+    return new Intl.NumberFormat("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0)) + " " + currency;
   }
-  function accountById(id) { return state.accounts.find(function (account) { return account.id === id; }); }
-  function empireById(id) { return state.empires.find(function (empire) { return empire.id === id; }); }
-  function activeAccount() { return accountById("u-samix"); }
   function showToast(message) {
     toastRegion.innerHTML = '<div class="toast">' + esc(message) + '</div>';
-    window.setTimeout(function () { toastRegion.innerHTML = ""; }, 3200);
+    window.setTimeout(function () { toastRegion.innerHTML = ""; }, 3600);
   }
   function pageHeader(page) {
     var meta = pageTitles[page];
     return '<h1>' + meta.title + '</h1><p class="page-intro">' + meta.description + '</p>';
   }
-  function renderWallet() {
-    var account = activeAccount();
-    var cards = Object.keys(currencies).map(function (code) {
-      return '<article class="balance-card"><div class="currency">' + esc(currencies[code].name) + ' (' + code + ')</div><div class="amount">' + money(account.balances[code], code) + '</div></article>';
-    }).join("");
-    var recipients = state.accounts.filter(function (a) { return a.id !== account.id; }).map(function (a) {
-      return '<option value="' + esc(a.id) + '">' + esc(a.name) + '</option>';
-    }).join("");
-    content.innerHTML = pageHeader("wallet") +
-      '<div class="panel"><h2>Conto personale</h2><p><strong>' + esc(account.name) + '</strong></p><p class="muted">Questi sono i saldi personali dell’utente attivo nella demo. Non comprendono i fondi del governo del suo impero.</p></div>' +
-      '<div class="balance-grid">' + cards + '</div>' +
-      '<section class="panel"><h2>Nuova transazione</h2><p class="muted">Trasferimento tra due conti personali. Per ora non ci sono commissioni né conversioni tra valute.</p>' +
-      '<form id="transaction-form"><div class="form-grid">' +
-      '<div class="field"><label for="recipient">Destinatario</label><select id="recipient" name="recipient" required>' + recipients + '</select></div>' +
-      '<div class="field"><label for="currency">Valuta</label><select id="currency" name="currency" required>' + Object.keys(currencies).map(function (code) { return '<option value="' + code + '">' + code + ' · ' + esc(currencies[code].name) + '</option>'; }).join("") + '</select></div>' +
-      '<div class="field"><label for="amount">Importo</label><input id="amount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" required></div>' +
-      '<div class="field"><label for="description">Causale</label><input id="description" name="description" maxlength="120" placeholder="Descrizione della transazione" required></div>' +
-      '</div><div class="actions"><button type="submit">Conferma trasferimento</button></div></form></section>' +
-      '<section class="panel"><h2>Movimenti recenti</h2>' + recentTransactions(account.id) + '</section>';
-    document.getElementById("transaction-form").addEventListener("submit", submitTransaction);
+  function setNotice(message) {
+    notice.innerHTML = message;
   }
-  function recentTransactions(accountId) {
-    var rows = state.transactions.filter(function (t) { return t.fromId === accountId || t.toId === accountId; }).slice().reverse().slice(0, 8);
-    if (!rows.length) return '<div class="empty">Nessuna transazione ancora registrata.</div>';
-    return '<div class="table-wrap"><table><thead><tr><th>Data</th><th>Operazione</th><th>Importo</th></tr></thead><tbody>' + rows.map(function (t) {
-      var outgoing = t.fromId === accountId;
-      return '<tr><td>' + esc(t.date) + '</td><td>' + esc(t.description) + '<br><small>' + (outgoing ? 'Destinatario: ' + esc(accountById(t.toId).name) : 'Mittente: ' + esc(accountById(t.fromId).name)) + '</small></td><td class="' + (outgoing ? 'amount-negative' : 'amount-positive') + '">' + (outgoing ? '−' : '+') + money(t.amount, t.currency) + '</td></tr>';
-    }).join("") + '</tbody></table></div>';
-  }
-  function submitTransaction(event) {
-    event.preventDefault();
-    var form = event.currentTarget;
-    var from = activeAccount();
-    var to = accountById(form.elements.recipient.value);
-    var currency = form.elements.currency.value;
-    var amount = Number(form.elements.amount.value);
-    var description = form.elements.description.value.trim();
-    if (!to || to.id === from.id) return showToast("Seleziona un destinatario diverso dal mittente.");
-    if (!currencies[currency] || !Number.isFinite(amount) || amount <= 0 || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.0000001) return showToast("Inserisci un importo valido con massimo due decimali.");
-    if (!description) return showToast("Inserisci una causale.");
-    if (from.balances[currency] + 0.000001 < amount) return showToast("Saldo insufficiente per questa valuta.");
-    // Applica entrambe le variazioni solo dopo aver superato tutti i controlli.
-    from.balances[currency] = Math.round((from.balances[currency] - amount) * 100) / 100;
-    to.balances[currency] = Math.round((to.balances[currency] + amount) * 100) / 100;
-    var id = "BE-" + String(state.nextTransactionId++).padStart(5, "0");
-    state.transactions.push({
-      id: id, fromId: from.id, toId: to.id, currency: currency, amount: amount,
-      description: description, date: new Date().toLocaleString("it-IT"), status: "Completata"
+
+  function renderAuth(mode, message) {
+    nav.hidden = true;
+    logoutButton.hidden = true;
+    userLabel.textContent = "Non hai effettuato l'accesso";
+    content.innerHTML = "";
+    authPanel.hidden = false;
+    var isSignup = mode === "signup";
+    authPanel.innerHTML =
+      '<h1>Bank Empire</h1>' +
+      '<p class="page-intro">Accedi per usare il tuo conto da qualsiasi dispositivo, oppure crea un account.</p>' +
+      (message ? '<p class="notice">' + esc(message) + '</p>' : '') +
+      '<div class="actions"><button type="button" id="show-login" ' + (!isSignup ? 'disabled' : '') + '>Accedi</button><button type="button" id="show-signup" ' + (isSignup ? 'disabled' : '') + '>Crea account</button></div>' +
+      '<form id="auth-form">' +
+      (isSignup ? '<div class="field"><label for="username">Nome utente (3–24 lettere, numeri o _)</label><input id="username" name="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]{3,24}" autocomplete="username" required></div>' : '') +
+      '<div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div>' +
+      '<div class="field"><label for="password">Password (almeno 8 caratteri)</label><input id="password" name="password" type="password" minlength="8" autocomplete="' + (isSignup ? 'new-password' : 'current-password') + '" required></div>' +
+      (isSignup ? '<div class="field"><label for="empire">Impero iniziale</label><select id="empire" name="empire"><option value="auroria">Impero di Auroria</option><option value="nova">Repubblica di Nova</option><option value="vesper">Dominio di Vesper</option></select></div>' : '') +
+      '<div class="actions"><button type="submit">' + (isSignup ? 'Crea account' : 'Accedi') + '</button></div></form>' +
+      '<p class="muted">I saldi iniziali sono a zero. Gli account e le transazioni sono condivisi; non inserire password usate su altri servizi.</p>';
+    document.getElementById("show-login").addEventListener("click", function () { renderAuth("login"); });
+    document.getElementById("show-signup").addEventListener("click", function () { renderAuth("signup"); });
+    document.getElementById("auth-form").addEventListener("submit", function (event) {
+      event.preventDefault();
+      submitAuth(event.currentTarget, isSignup);
     });
-    persist();
-    renderWallet();
-    showToast("Trasferimento registrato: " + id + ".");
   }
-  function totalCitizenBalances(empireId, currency) {
-    return state.accounts.filter(function (a) { return a.empireId === empireId; }).reduce(function (sum, a) { return sum + a.balances[currency]; }, 0);
+
+  async function submitAuth(form, isSignup) {
+    var email = form.elements.email.value.trim();
+    var password = form.elements.password.value;
+    var result;
+    var button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      if (isSignup) {
+        var username = form.elements.username.value.trim();
+        var empire = form.elements.empire.value;
+        result = await supabase.auth.signUp({
+          email: email,
+          password: password,
+          options: { data: { username: username, empire_id: empire } }
+        });
+        if (result.error) throw result.error;
+        if (!result.data.session) {
+          renderAuth("login", "Account creato. Se la conferma email è attiva, apri il messaggio ricevuto e poi accedi.");
+          return;
+        }
+      } else {
+        result = await supabase.auth.signInWithPassword({ email: email, password: password });
+        if (result.error) throw result.error;
+      }
+      currentUser = result.data.user;
+      await renderApp();
+    } catch (error) {
+      renderAuth(isSignup ? "signup" : "login", friendlyError(error));
+    } finally {
+      if (button.isConnected) button.disabled = false;
+    }
   }
-  function renderEmpires() {
-    content.innerHTML = pageHeader("empires") +
-      '<p class="muted">Il patrimonio complessivo è mostrato separatamente per valuta: saldo dei conti personali dei cittadini + fondi governativi. I valori sono dimostrativi.</p>' +
-      '<div class="empire-grid">' + state.empires.map(function (empire) {
-        var citizens = state.accounts.filter(function (a) { return a.empireId === empire.id; });
-        var government = Object.keys(currencies).map(function (code) {
-          return '<div class="currency-line"><span>Fondi Stato · ' + code + '</span><strong>' + money(empire.governmentFunds[code], code) + '</strong></div>';
-        }).join("");
-        var totals = Object.keys(currencies).map(function (code) {
-          var citizensTotal = totalCitizenBalances(empire.id, code);
-          var total = citizensTotal + empire.governmentFunds[code];
-          return '<div class="currency-line"><span>' + code + ' <small>(cittadini ' + money(citizensTotal, code) + ' + Stato ' + money(empire.governmentFunds[code], code) + ')</small></span><strong>' + money(total, code) + '</strong></div>';
-        }).join("");
-        return '<article class="empire-card"><h2>' + esc(empire.name) + '</h2><p>Leader indicato nella demo: ' + esc(empire.leader) + '<br>Conti cittadini presenti nel prototipo: ' + citizens.length + '</p><h3>Fondi governativi</h3><div class="currency-list">' + government + '</div><h3 style="margin-top:18px">Patrimonio complessivo per valuta</h3><div class="currency-list">' + totals + '</div></article>';
-      }).join("") + '</div>';
+
+  function friendlyError(error) {
+    var message = error && error.message ? error.message : "Operazione non riuscita.";
+    if (/username|profiles_username_lower_unique|duplicate key/i.test(message)) return "Nome utente già usato. Scegline un altro.";
+    if (/invalid login credentials/i.test(message)) return "Email o password non corretti.";
+    if (/password should be at least/i.test(message)) return "La password deve contenere almeno 8 caratteri.";
+    if (/user already registered/i.test(message)) return "Esiste già un account con questa email. Accedi.";
+    return message;
   }
-  function renderLedger() {
-    var rows = state.transactions.slice().reverse();
-    content.innerHTML = pageHeader("ledger") + '<section class="panel"><h2>Transazioni registrate</h2>' +
-      (rows.length ? '<div class="table-wrap"><table><thead><tr><th>Riferimento</th><th>Data</th><th>Mittente</th><th>Destinatario</th><th>Causale</th><th>Importo</th><th>Stato</th></tr></thead><tbody>' + rows.map(function (t) {
-        var from = accountById(t.fromId), to = accountById(t.toId);
-        return '<tr><td>' + esc(t.id) + '</td><td>' + esc(t.date) + '</td><td>' + esc(from ? from.name : "Conto non disponibile") + '</td><td>' + esc(to ? to.name : "Conto non disponibile") + '</td><td>' + esc(t.description) + '</td><td>' + money(t.amount, t.currency) + '</td><td>' + esc(t.status) + '</td></tr>';
-      }).join("") + '</tbody></table></div>' : '<div class="empty">Il libro mastro è vuoto. Le transazioni appariranno qui dopo essere state create dal Portafoglio.</div>') +
-      '</section>';
+
+  async function loadProfile() {
+    var result = await supabase.from("profiles").select("id, username, empire_id").eq("id", currentUser.id).single();
+    if (result.error) throw result.error;
+    currentProfile = result.data;
   }
-  function setPage(page) {
+  async function renderApp() {
+    if (!currentUser) {
+      renderAuth("login");
+      setNotice("<strong>Database condiviso:</strong> accedi o crea un account per continuare.");
+      return;
+    }
+    authPanel.hidden = true;
+    nav.hidden = false;
+    logoutButton.hidden = false;
+    userLabel.textContent = currentProfile ? currentProfile.username : "Account connesso";
+    setNotice("<strong>Connessione attiva:</strong> saldi e movimenti vengono letti dal database condiviso.");
+    var page = location.hash.slice(1);
     if (!pageTitles[page]) page = "wallet";
     document.querySelectorAll("nav a[data-page]").forEach(function (link) {
       var active = link.dataset.page === page;
       link.classList.toggle("active", active);
       if (active) link.setAttribute("aria-current", "page"); else link.removeAttribute("aria-current");
     });
-    if (page === "wallet") renderWallet();
-    else if (page === "empires") renderEmpires();
-    else renderLedger();
+    try {
+      if (!currentProfile) await loadProfile();
+      userLabel.textContent = currentProfile.username;
+      if (page === "wallet") await renderWallet();
+      else if (page === "empires") await renderEmpires();
+      else await renderLedger();
+    } catch (error) {
+      content.innerHTML = '<section class="panel"><h2>Non riesco a caricare i dati</h2><p>' + esc(friendlyError(error)) + '</p><button id="retry-load" type="button">Riprova</button></section>';
+      document.getElementById("retry-load").addEventListener("click", renderApp);
+    }
   }
-  window.addEventListener("hashchange", function () { setPage(location.hash.slice(1)); });
-  if (!location.hash || !pageTitles[location.hash.slice(1)]) location.hash = "wallet";
-  else setPage(location.hash.slice(1));
-  persist();
+
+  async function fetchProfiles() {
+    var result = await supabase.from("profiles").select("id, username, empire_id").order("username");
+    if (result.error) throw result.error;
+    return result.data || [];
+  }
+  async function renderWallet() {
+    var [walletResult, profiles, transactionResult] = await Promise.all([
+      supabase.from("wallets").select("currency, balance").eq("user_id", currentUser.id),
+      fetchProfiles(),
+      supabase.from("transactions").select("id, from_user, to_user, currency, amount, description, created_at").or("from_user.eq." + currentUser.id + ",to_user.eq." + currentUser.id).order("created_at", { ascending: false }).limit(8)
+    ]);
+    if (walletResult.error) throw walletResult.error;
+    if (transactionResult.error) throw transactionResult.error;
+    var balances = {};
+    (walletResult.data || []).forEach(function (w) { balances[w.currency] = Number(w.balance); });
+    var profileById = {};
+    profiles.forEach(function (p) { profileById[p.id] = p; });
+    var recipients = profiles.filter(function (p) { return p.id !== currentUser.id; }).map(function (p) {
+      return '<option value="' + esc(p.username) + '">' + esc(p.username) + ' · ' + esc(empireNames[p.empire_id] || p.empire_id) + '</option>';
+    }).join("");
+    var cards = Object.keys(currencies).map(function (code) {
+      return '<article class="balance-card"><div class="currency">' + esc(currencies[code].name) + ' (' + code + ')</div><div class="amount">' + money(balances[code] || 0, code) + '</div></article>';
+    }).join("");
+    content.innerHTML = pageHeader("wallet") +
+      '<div class="panel"><h2>Conto personale</h2><p><strong>' + esc(currentProfile.username) + '</strong></p><p class="muted">Impero: ' + esc(empireNames[currentProfile.empire_id] || currentProfile.empire_id) + '. I fondi governativi sono separati.</p></div>' +
+      '<div class="balance-grid">' + cards + '</div>' +
+      '<section class="panel"><h2>Nuova transazione</h2><p class="muted">Trasferimenti tra utenti registrati, nella stessa valuta, senza commissioni né conversioni.</p>' +
+      (recipients ? '<form id="transaction-form"><div class="form-grid">' +
+      '<div class="field"><label for="recipient">Destinatario</label><select id="recipient" name="recipient" required>' + recipients + '</select></div>' +
+      '<div class="field"><label for="currency">Valuta</label><select id="currency" name="currency" required>' + Object.keys(currencies).map(function (code) { return '<option value="' + code + '">' + code + ' · ' + esc(currencies[code].name) + '</option>'; }).join("") + '</select></div>' +
+      '<div class="field"><label for="amount">Importo</label><input id="amount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" required></div>' +
+      '<div class="field"><label for="description">Causale</label><input id="description" name="description" maxlength="120" placeholder="Descrizione della transazione" required></div>' +
+      '</div><div class="actions"><button type="submit">Conferma trasferimento</button></div></form>' :
+      '<div class="empty">Serve almeno un altro account registrato per effettuare un trasferimento.</div>') +
+      '</section><section class="panel"><h2>Movimenti recenti</h2>' + transactionRows(transactionResult.data || [], profileById, currentUser.id, false) + '</section>';
+    var form = document.getElementById("transaction-form");
+    if (form) form.addEventListener("submit", submitTransaction);
+  }
+
+  function transactionRows(rows, profileById, userId, full) {
+    if (!rows.length) return '<div class="empty">Nessuna transazione ancora registrata.</div>';
+    return '<div class="table-wrap"><table><thead><tr>' +
+      (full ? '<th>Riferimento</th>' : '') + '<th>Data</th><th>Operazione</th>' +
+      (full ? '<th>Mittente</th><th>Destinatario</th>' : '') + '<th>Importo</th></tr></thead><tbody>' +
+      rows.map(function (t) {
+        var outgoing = t.from_user === userId;
+        var from = profileById[t.from_user];
+        var to = profileById[t.to_user];
+        var date = new Date(t.created_at).toLocaleString("it-IT");
+        return '<tr>' + (full ? '<td>BE-' + esc(t.id) + '</td>' : '') +
+          '<td>' + esc(date) + '</td><td>' + esc(t.description) +
+          (full ? '' : '<br><small>' + (outgoing ? 'Destinatario: ' + esc(to ? to.username : "utente") : 'Mittente: ' + esc(from ? from.username : "utente")) + '</small>') +
+          '</td>' + (full ? '<td>' + esc(from ? from.username : "utente") + '</td><td>' + esc(to ? to.username : "utente") + '</td>' : '') +
+          '<td class="' + (outgoing ? 'amount-negative' : 'amount-positive') + '">' + (outgoing ? '−' : '+') + money(t.amount, t.currency) + '</td></tr>';
+      }).join("") + '</tbody></table></div>';
+  }
+
+  async function submitTransaction(event) {
+    event.preventDefault();
+    var form = event.currentTarget;
+    var button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      var result = await supabase.rpc("transfer_funds", {
+        recipient_username: form.elements.recipient.value,
+        transfer_currency: form.elements.currency.value,
+        transfer_amount: Number(form.elements.amount.value),
+        transfer_description: form.elements.description.value.trim()
+      });
+      if (result.error) throw result.error;
+      showToast("Trasferimento completato. Riferimento BE-" + result.data + ".");
+      await renderApp();
+    } catch (error) {
+      showToast(friendlyError(error));
+      button.disabled = false;
+    }
+  }
+
+  async function renderEmpires() {
+    var [empiresResult, summaryResult] = await Promise.all([
+      supabase.from("empires").select("id, name, leader").order("id"),
+      supabase.rpc("get_empire_summary")
+    ]);
+    if (empiresResult.error) throw empiresResult.error;
+    if (summaryResult.error) throw summaryResult.error;
+    var grouped = {};
+    (summaryResult.data || []).forEach(function (row) {
+      if (!grouped[row.empire_id]) grouped[row.empire_id] = {};
+      grouped[row.empire_id][row.currency] = row;
+    });
+    content.innerHTML = pageHeader("empires") +
+      '<p class="muted">Il patrimonio complessivo è mostrato separatamente per valuta: saldi dei cittadini + fondi governativi. Non vengono sommati valori di valute diverse.</p>' +
+      '<div class="empire-grid">' + (empiresResult.data || []).map(function (empire) {
+        var currenciesHtml = Object.keys(currencies).map(function (code) {
+          var row = (grouped[empire.id] || {})[code] || {};
+          var citizenTotal = Number(row.citizen_total || 0);
+          var governmentTotal = Number(row.government_total || 0);
+          return '<div class="currency-line"><span>' + code + ' <small>(cittadini ' + money(citizenTotal, code) + ' + Stato ' + money(governmentTotal, code) + ')</small></span><strong>' + money(citizenTotal + governmentTotal, code) + '</strong></div>';
+        }).join("");
+        return '<article class="empire-card"><h2>' + esc(empire.name) + '</h2><p>Leader indicato: ' + esc(empire.leader || "Non definito") + '<br>Utenti registrati: ' + Number((grouped[empire.id] || {}).SOL && (grouped[empire.id].SOL.citizen_count) || 0) + '</p><h3>Patrimonio complessivo per valuta</h3><div class="currency-list">' + currenciesHtml + '</div></article>';
+      }).join("") + '</div>';
+  }
+
+  async function renderLedger() {
+    var [transactionResult, profiles] = await Promise.all([
+      supabase.from("transactions").select("id, from_user, to_user, currency, amount, description, created_at").or("from_user.eq." + currentUser.id + ",to_user.eq." + currentUser.id).order("created_at", { ascending: false }).limit(100),
+      fetchProfiles()
+    ]);
+    if (transactionResult.error) throw transactionResult.error;
+    var profileById = {};
+    profiles.forEach(function (p) { profileById[p.id] = p; });
+    content.innerHTML = pageHeader("ledger") + '<section class="panel"><h2>Transazioni registrate</h2>' +
+      transactionRows(transactionResult.data || [], profileById, currentUser.id, true) + '</section>';
+  }
+
+  logoutButton.addEventListener("click", async function () {
+    logoutButton.disabled = true;
+    var result = await supabase.auth.signOut();
+    logoutButton.disabled = false;
+    if (result.error) showToast(friendlyError(result.error));
+  });
+  window.addEventListener("hashchange", function () { if (currentUser) renderApp(); });
+  supabase.auth.onAuthStateChange(function (_event, session) {
+    currentUser = session ? session.user : null;
+    currentProfile = null;
+    window.setTimeout(function () { renderApp(); }, 0);
+  });
+
+  async function init() {
+    setNotice("<strong>Bank Empire:</strong> collegamento al database condiviso.");
+    var result = await supabase.auth.getSession();
+    if (result.error) {
+      renderAuth("login", friendlyError(result.error));
+      return;
+    }
+    currentUser = result.data.session ? result.data.session.user : null;
+    await renderApp();
+  }
+  init();
 })();
