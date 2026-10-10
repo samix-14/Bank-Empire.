@@ -1,3 +1,13 @@
+## 0.4
+
+- Aggiunta la pagina Ruolo con interfacce demo per Admin Supremo, Imperatore e Gestore azienda.
+- Aggiunte azioni locali demo: emissione monetaria, modifica aliquota fiscale, creazione di imperi e aziende.
+- Aggiunta la possibilità di uscire dall’area ruolo e scegliere un’altra interfaccia.
+- Riorganizzata la pagina Portafogli per evidenziare transazioni, saldi e movimenti recenti per valuta.
+- Aggiornati intestazioni, avvisi e documentazione alla versione 0.4.
+- Chiarito che i codici ruolo sono pubblici e non costituiscono autenticazione o autorizzazioni sicure.
+- La pagina guida completa è rinviata a dopo la versione 1.0.
+
 ## 0.3
 
 - Salvataggio locale dei dati dimostrativi tra ricaricamenti, quando il browser consente l'uso di localStorage.
