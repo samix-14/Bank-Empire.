@@ -1,41 +1,61 @@
 # Bank Empire
 
-Bank Empire è un prototipo web di economia multivaluta. La versione 0.7 collega autenticazione, portafogli e registro transazioni a un database Supabase condiviso.
+Bank Empire è un prototipo web di economia virtuale multivaluta collegato a Supabase. La versione 0.7 introduce conti separati e password dedicate, mantenendo un solo account principale per utente.
 
 ## Pagine
 
-- **Portafoglio**: saldi personali in SOL, AUR e NVC; trasferimenti verso altri utenti registrati; movimenti recenti.
-- **Imperi**: fondi governativi e patrimonio complessivo per valuta, aggregati dal database.
-- **Libro mastro**: registro delle transazioni in cui l'utente è mittente o destinatario.
+- **Conti**: crea e sblocca fino a quattro conti, visualizza i saldi per valuta e trasferisci fondi a un altro conto.
+- **Imperi**: mostra il patrimonio aggregato dei cittadini e il fondo statale per valuta, il numero di membri WhatsApp registrato e l'assicurazione attualmente assegnata all'impero.
+- **Libro mastro**: mostra i movimenti del conto aperto.
+
+## Account e conti
+
+- Un solo account principale con email e password.
+- Ogni account principale può avere al massimo quattro conti bancari.
+- Ogni conto ha un nome globalmente univoco e una password separata.
+- Il conto iniziale viene creato alla registrazione; la password del conto viene impostata dopo il primo accesso, così non viene salvata nei metadati Auth.
+- Il conto iniziale riceve il bonus dell'assicurazione selezionata dall'impero. I conti aggiuntivi non ricevono bonus.
+- Le password dei conti sono memorizzate come hash bcrypt nel database. Dopo lo sblocco, il server rilascia un token temporaneo valido otto ore; il token grezzo resta nella sessione della scheda e nel database è salvato solo il suo hash.
+- Saldi, trasferimenti e movimenti dei conti vengono letti e modificati tramite funzioni SQL con controlli server-side.
+- Il catalogo valute è basato su una tabella: i conti non sono limitati a tre valute. Per ora il cambio valuta non è ancora implementato; i trasferimenti avvengono nella stessa valuta.
+
+## Imperi e assicurazioni
+
+Sono presenti tre assicurazioni dimostrative, modificabili in futuro dagli imperatori:
+
+| Piano di esempio | Bonus iniziale | Costo indicativo |
+|---|---:|---:|
+| Base | 100 SOL | 50 SOL |
+| Standard | 500 SOL | 200 SOL |
+| Premium | 1.000 SOL | 400 SOL |
+
+I valori sono segnaposto. Per ora ogni impero usa il piano Standard. La tabella degli imperi registra il numero dei membri WhatsApp, ma il conteggio va aggiornato manualmente: l'integrazione automatica con WhatsApp e la gestione delle assicurazioni da parte degli imperatori non sono ancora implementate. Il costo indicativo non viene addebitato automaticamente finché non saranno definite le regole economiche definitive.
+
+I fondi statali sono conservati in una tabella separata per valuta. I vecchi campi di bilancio sono stati mantenuti per compatibilità, ma le nuove schermate leggono il fondo statale dalla tabella dedicata.
+
+## Database e sicurezza
+
+Le modifiche di saldo vengono eseguite sul server in transazioni SQL. Le tabelle interne dei conti non sono direttamente leggibili dal browser: l'accesso passa attraverso funzioni che controllano l'utente autenticato e il token del conto. Il progetto usa una publishable key nel frontend; non inserire mai una service-role key o una chiave segreta nel codice client.
+
+Il database esistente è stato esteso senza cancellare le tabelle precedenti di portafogli e transazioni. La nuova interfaccia usa le tabelle dei conti. I trasferimenti legacy restano nel database per compatibilità, ma non sono più mostrati nell'interfaccia 0.7.
 
 ## Avvio
 
-Apri `index.html` con un browser moderno oppure pubblica il repository su un host statico come Vercel. La libreria Supabase JS viene caricata da CDN; non è necessario un processo di build.
+Apri `index.html` con un browser moderno o pubblica il repository su un host statico come Vercel. Supabase JS viene caricato da CDN; non è richiesto un processo di build.
 
-Il frontend usa il project URL e la publishable key di Supabase. La chiave pubblicabile è destinata al browser; **non inserire mai una service_role key o una chiave segreta nel frontend**.
-
-## Account e trasferimenti
-
-- Registrazione con email, password, nome utente univoco e scelta dell'impero.
-- Ogni nuovo utente riceve tre portafogli con saldo iniziale pari a zero.
-- I trasferimenti sono eseguiti da una funzione SQL atomica: il database valida mittente, destinatario, valuta, importo, saldo e causale.
-- I fondi governativi sono separati dai portafogli personali.
-- I saldi e le transazioni sono condivisi tra gli utenti registrati.
-- Le transazioni sono limitate alla stessa valuta; non ci sono commissioni né cambi valuta.
-- Il progetto applica Row Level Security (RLS): ogni utente può leggere soltanto i propri portafogli e le transazioni a cui partecipa. I nomi utente e i totali aggregati degli imperi sono visibili agli utenti autenticati.
-
-## Limiti attuali
+## Limiti della versione 0.7
 
 - Non è denaro reale e non gestisce pagamenti.
-- I saldi partono da zero; per il test dei trasferimenti occorre caricare fondi di prova nei portafogli dal database.
-- La conferma email dipende dalle impostazioni Auth del progetto Supabase.
-- È un primo backend, non ancora sottoposto a test di carico o a un audit di sicurezza completo.
-- I dati degli imperi sono valori dimostrativi iniziali.
+- Il cambio valuta, il marketplace, le aziende e i poteri degli imperatori non sono ancora implementati.
+- Il conteggio dei membri WhatsApp è manuale.
+- Le tre assicurazioni e i loro importi sono dimostrativi.
+- L'app non è ancora stata sottoposta a un audit di sicurezza completo o a test di carico.
 
 ## Struttura
 
 - `index.html`: struttura e navigazione.
 - `style.css`: stile responsive.
-- `script.js`: autenticazione, lettura dati e chiamate alle funzioni del database.
+- `script.js`: autenticazione, conti, trasferimenti, imperi e libro mastro.
+- `supabase/migrations/`: SQL per riprodurre le modifiche al database.
 - `README.md`: documentazione.
 - `CHANGELOG.md`: cronologia delle versioni.
