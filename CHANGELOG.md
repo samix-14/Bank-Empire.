@@ -2,14 +2,15 @@
 
 ## 0.7
 
-- Collegato Bank Empire al progetto Supabase condiviso.
-- Aggiunti registrazione, accesso e uscita con email e password.
-- Ogni utente ha un profilo, un impero e tre portafogli personali inizializzati a zero.
-- Spostata la logica dei trasferimenti nel database con funzione atomica e controlli lato server.
-- Aggiunti controlli RLS per profili, portafogli, imperi e transazioni.
-- Il libro mastro mostra le transazioni dell'utente autenticato.
-- I totali degli imperi vengono aggregati dal database senza esporre i singoli saldi degli altri utenti.
-- Aggiornata la documentazione.
+- Introdotto il modello con un account principale e fino a quattro conti separati per utente.
+- Aggiunta la pagina Conti per creare, sbloccare e bloccare conti con password indipendenti.
+- Aggiunti hash bcrypt per le password dei conti e token temporanei server-side per l'accesso ai saldi.
+- Il conto iniziale riceve il bonus dell'assicurazione scelta dall'impero; i conti aggiuntivi non ricevono bonus.
+- Aggiunti tre piani assicurativi dimostrativi, fondi statali per valuta e conteggio membri WhatsApp registrato manualmente.
+- Resi dinamici i saldi dei conti per valuta tramite il catalogo valute del database.
+- Aggiunti trasferimenti atomici tra conti e movimenti associati al conto.
+- Aggiornati documentazione e stili responsive.
+- Il cambio valuta, la configurazione delle assicurazioni da parte degli imperatori e l'integrazione automatica con WhatsApp restano per versioni successive.
 
 ## 0.6
 
