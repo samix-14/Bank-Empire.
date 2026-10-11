@@ -1,28 +1,16 @@
-/* Bank Empire 0.7: autenticazione e database condiviso Supabase. */
+/* Bank Empire 0.7: conti separati, accesso per conto e imperi. */
 (function () {
   "use strict";
-
   var SUPABASE_URL = "https://iprquijkhvugvzfjvibe.supabase.co";
   var SUPABASE_KEY = "sb_publishable_5bUbjJ6LpSyROlSq8F5xaA_omW2TGkL";
   var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  var currencies = {
-    SOL: { name: "Solari" },
-    AUR: { name: "Aurei" },
-    NVC: { name: "Novacrediti" }
-  };
-  var empireNames = {
-    auroria: "Impero di Auroria",
-    nova: "Repubblica di Nova",
-    vesper: "Dominio di Vesper"
-  };
   var currentUser = null;
   var currentProfile = null;
   var pageTitles = {
-    wallet: { title: "Portafoglio", description: "Il tuo saldo personale condiviso. Le valute restano separate e i fondi dello Stato non sono spendibili dal conto personale." },
-    empires: { title: "Imperi", description: "Fondi governativi e patrimonio complessivo per valuta, aggiornati dal database condiviso." },
-    ledger: { title: "Libro mastro", description: "Registro condiviso delle transazioni in cui sei mittente o destinatario." }
+    accounts: { title: "Conti", description: "Gestisci fino a quattro conti separati. Ogni conto ha una password propria e saldi indipendenti per valuta." },
+    empires: { title: "Imperi", description: "Patrimonio dei cittadini, fondi statali e assicurazioni dimostrative configurate per ciascun impero." },
+    ledger: { title: "Libro mastro", description: "Movimenti del conto attualmente aperto. Per leggere il registro devi prima sbloccare un conto." }
   };
-
   var content = document.getElementById("page-content");
   var authPanel = document.getElementById("auth-panel");
   var notice = document.getElementById("notice");
@@ -30,6 +18,8 @@
   var userLabel = document.getElementById("user-label");
   var logoutButton = document.getElementById("logout-button");
   var toastRegion = document.getElementById("toast-region");
+  var ACTIVE_TOKEN = "be_active_account_token";
+  var ACTIVE_ID = "be_active_account_id";
 
   function esc(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, function (c) {
@@ -43,12 +33,18 @@
     toastRegion.innerHTML = '<div class="toast">' + esc(message) + '</div>';
     window.setTimeout(function () { toastRegion.innerHTML = ""; }, 3600);
   }
+  function setNotice(message) { notice.innerHTML = message; }
+  function friendlyError(error) {
+    var message = error && error.message ? error.message : "Operazione non riuscita.";
+    if (/username|profiles_username_lower_unique|duplicate key/i.test(message)) return "Nome utente o nome conto già utilizzato. Scegline un altro.";
+    if (/invalid login credentials/i.test(message)) return "Email o password non corretti.";
+    if (/password should be at least/i.test(message)) return "La password deve contenere almeno 8 caratteri.";
+    if (/user already registered/i.test(message)) return "Esiste già un account con questa email. Accedi.";
+    return message;
+  }
   function pageHeader(page) {
     var meta = pageTitles[page];
     return '<h1>' + meta.title + '</h1><p class="page-intro">' + meta.description + '</p>';
-  }
-  function setNotice(message) {
-    notice.innerHTML = message;
   }
 
   function renderAuth(mode, message) {
@@ -60,16 +56,17 @@
     var isSignup = mode === "signup";
     authPanel.innerHTML =
       '<h1>Bank Empire</h1>' +
-      '<p class="page-intro">Accedi per usare il tuo conto da qualsiasi dispositivo, oppure crea un account.</p>' +
+      '<p class="page-intro">Accedi al tuo account principale oppure registrati. Il conto iniziale riceve il bonus previsto dall’assicurazione dimostrativa del tuo impero.</p>' +
       (message ? '<p class="notice">' + esc(message) + '</p>' : '') +
       '<div class="actions"><button type="button" id="show-login" ' + (!isSignup ? 'disabled' : '') + '>Accedi</button><button type="button" id="show-signup" ' + (isSignup ? 'disabled' : '') + '>Crea account</button></div>' +
       '<form id="auth-form">' +
       (isSignup ? '<div class="field"><label for="username">Nome utente (3–24 lettere, numeri o _)</label><input id="username" name="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]{3,24}" autocomplete="username" required></div>' : '') +
       '<div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div>' +
-      '<div class="field"><label for="password">Password (almeno 8 caratteri)</label><input id="password" name="password" type="password" minlength="8" autocomplete="' + (isSignup ? 'new-password' : 'current-password') + '" required></div>' +
-      (isSignup ? '<div class="field"><label for="empire">Impero iniziale</label><select id="empire" name="empire"><option value="auroria">Impero di Auroria</option><option value="nova">Repubblica di Nova</option><option value="vesper">Dominio di Vesper</option></select></div>' : '') +
+      '<div class="field"><label for="password">Password account principale (almeno 8 caratteri)</label><input id="password" name="password" type="password" minlength="8" autocomplete="' + (isSignup ? 'new-password' : 'current-password') + '" required></div>' +
+      (isSignup ? '<div class="field"><label for="initial-account-name">Nome del conto iniziale</label><input id="initial-account-name" name="initial_account_name" minlength="2" maxlength="32" placeholder="Es. Conto principale" required></div>' : '') +
+      (isSignup ? '<div class="field"><label for="empire">Impero principale</label><select id="empire" name="empire"><option value="auroria">Impero di Auroria</option><option value="nova">Repubblica di Nova</option><option value="vesper">Dominio di Vesper</option></select></div>' : '') +
       '<div class="actions"><button type="submit">' + (isSignup ? 'Crea account' : 'Accedi') + '</button></div></form>' +
-      '<p class="muted">I saldi iniziali sono a zero. Gli account e le transazioni sono condivisi; non inserire password usate su altri servizi.</p>';
+      '<p class="muted">La password del conto viene impostata dopo il primo accesso e resta separata da quella dell’account principale.</p>';
     document.getElementById("show-login").addEventListener("click", function () { renderAuth("login"); });
     document.getElementById("show-signup").addEventListener("click", function () { renderAuth("signup"); });
     document.getElementById("auth-form").addEventListener("submit", function (event) {
@@ -81,28 +78,30 @@
   async function submitAuth(form, isSignup) {
     var email = form.elements.email.value.trim();
     var password = form.elements.password.value;
-    var result;
     var button = form.querySelector('button[type="submit"]');
     button.disabled = true;
     try {
+      var result;
       if (isSignup) {
-        var username = form.elements.username.value.trim();
-        var empire = form.elements.empire.value;
         result = await supabase.auth.signUp({
           email: email,
           password: password,
-          options: { data: { username: username, empire_id: empire } }
+          options: { data: {
+            username: form.elements.username.value.trim(),
+            empire_id: form.elements.empire.value,
+            initial_account_name: form.elements.initial_account_name.value.trim()
+          } }
         });
-        if (result.error) throw result.error;
-        if (!result.data.session) {
-          renderAuth("login", "Account creato. Se la conferma email è attiva, apri il messaggio ricevuto e poi accedi.");
-          return;
-        }
       } else {
         result = await supabase.auth.signInWithPassword({ email: email, password: password });
-        if (result.error) throw result.error;
+      }
+      if (result.error) throw result.error;
+      if (isSignup && !result.data.session) {
+        renderAuth("login", "Account creato. Conferma l’email se richiesto, poi accedi per impostare la password del conto iniziale.");
+        return;
       }
       currentUser = result.data.user;
+      currentProfile = null;
       await renderApp();
     } catch (error) {
       renderAuth(isSignup ? "signup" : "login", friendlyError(error));
@@ -111,20 +110,12 @@
     }
   }
 
-  function friendlyError(error) {
-    var message = error && error.message ? error.message : "Operazione non riuscita.";
-    if (/username|profiles_username_lower_unique|duplicate key/i.test(message)) return "Nome utente già usato. Scegline un altro.";
-    if (/invalid login credentials/i.test(message)) return "Email o password non corretti.";
-    if (/password should be at least/i.test(message)) return "La password deve contenere almeno 8 caratteri.";
-    if (/user already registered/i.test(message)) return "Esiste già un account con questa email. Accedi.";
-    return message;
-  }
-
   async function loadProfile() {
     var result = await supabase.from("profiles").select("id, username, empire_id").eq("id", currentUser.id).single();
     if (result.error) throw result.error;
     currentProfile = result.data;
   }
+
   async function renderApp() {
     if (!currentUser) {
       renderAuth("login");
@@ -134,19 +125,18 @@
     authPanel.hidden = true;
     nav.hidden = false;
     logoutButton.hidden = false;
-    userLabel.textContent = currentProfile ? currentProfile.username : "Account connesso";
-    setNotice("<strong>Connessione attiva:</strong> saldi e movimenti vengono letti dal database condiviso.");
-    var page = location.hash.slice(1);
-    if (!pageTitles[page]) page = "wallet";
-    document.querySelectorAll("nav a[data-page]").forEach(function (link) {
-      var active = link.dataset.page === page;
-      link.classList.toggle("active", active);
-      if (active) link.setAttribute("aria-current", "page"); else link.removeAttribute("aria-current");
-    });
+    setNotice("<strong>Connessione attiva:</strong> dati economici e trasferimenti sono gestiti da Supabase.");
     try {
       if (!currentProfile) await loadProfile();
       userLabel.textContent = currentProfile.username;
-      if (page === "wallet") await renderWallet();
+      var page = location.hash.slice(1);
+      if (!pageTitles[page]) page = "accounts";
+      document.querySelectorAll("nav a[data-page]").forEach(function (link) {
+        var active = link.dataset.page === page;
+        link.classList.toggle("active", active);
+        if (active) link.setAttribute("aria-current", "page"); else link.removeAttribute("aria-current");
+      });
+      if (page === "accounts") await renderAccounts();
       else if (page === "empires") await renderEmpires();
       else await renderLedger();
     } catch (error) {
@@ -155,78 +145,163 @@
     }
   }
 
-  async function fetchProfiles() {
-    var result = await supabase.from("profiles").select("id, username, empire_id").order("username");
-    if (result.error) throw result.error;
-    return result.data || [];
+  function storeAccountSession(row) {
+    sessionStorage.setItem(ACTIVE_TOKEN, row.access_token);
+    sessionStorage.setItem(ACTIVE_ID, row.account_id);
   }
-  async function renderWallet() {
-    var [walletResult, profiles, transactionResult] = await Promise.all([
-      supabase.from("wallets").select("currency, balance").eq("user_id", currentUser.id),
-      fetchProfiles(),
-      supabase.from("transactions").select("id, from_user, to_user, currency, amount, description, created_at").or("from_user.eq." + currentUser.id + ",to_user.eq." + currentUser.id).order("created_at", { ascending: false }).limit(8)
-    ]);
-    if (walletResult.error) throw walletResult.error;
-    if (transactionResult.error) throw transactionResult.error;
-    var balances = {};
-    (walletResult.data || []).forEach(function (w) { balances[w.currency] = Number(w.balance); });
-    var profileById = {};
-    profiles.forEach(function (p) { profileById[p.id] = p; });
-    var recipients = profiles.filter(function (p) { return p.id !== currentUser.id; }).map(function (p) {
-      return '<option value="' + esc(p.username) + '">' + esc(p.username) + ' · ' + esc(empireNames[p.empire_id] || p.empire_id) + '</option>';
-    }).join("");
-    var cards = Object.keys(currencies).map(function (code) {
-      return '<article class="balance-card"><div class="currency">' + esc(currencies[code].name) + ' (' + code + ')</div><div class="amount">' + money(balances[code] || 0, code) + '</div></article>';
-    }).join("");
-    content.innerHTML = pageHeader("wallet") +
-      '<div class="panel"><h2>Conto personale</h2><p><strong>' + esc(currentProfile.username) + '</strong></p><p class="muted">Impero: ' + esc(empireNames[currentProfile.empire_id] || currentProfile.empire_id) + '. I fondi governativi sono separati.</p></div>' +
-      '<div class="balance-grid">' + cards + '</div>' +
-      '<section class="panel"><h2>Nuova transazione</h2><p class="muted">Trasferimenti tra utenti registrati, nella stessa valuta, senza commissioni né conversioni.</p>' +
-      (recipients ? '<form id="transaction-form"><div class="form-grid">' +
-      '<div class="field"><label for="recipient">Destinatario</label><select id="recipient" name="recipient" required>' + recipients + '</select></div>' +
-      '<div class="field"><label for="currency">Valuta</label><select id="currency" name="currency" required>' + Object.keys(currencies).map(function (code) { return '<option value="' + code + '">' + code + ' · ' + esc(currencies[code].name) + '</option>'; }).join("") + '</select></div>' +
-      '<div class="field"><label for="amount">Importo</label><input id="amount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" required></div>' +
-      '<div class="field"><label for="description">Causale</label><input id="description" name="description" maxlength="120" placeholder="Descrizione della transazione" required></div>' +
-      '</div><div class="actions"><button type="submit">Conferma trasferimento</button></div></form>' :
-      '<div class="empty">Serve almeno un altro account registrato per effettuare un trasferimento.</div>') +
-      '</section><section class="panel"><h2>Movimenti recenti</h2>' + transactionRows(transactionResult.data || [], profileById, currentUser.id, false) + '</section>';
-    var form = document.getElementById("transaction-form");
-    if (form) form.addEventListener("submit", submitTransaction);
+  function clearAccountSession() {
+    sessionStorage.removeItem(ACTIVE_TOKEN);
+    sessionStorage.removeItem(ACTIVE_ID);
+  }
+  function activeToken() { return sessionStorage.getItem(ACTIVE_TOKEN); }
+
+  async function renderAccounts(message) {
+    var result = await supabase.rpc("get_my_accounts");
+    if (result.error) throw result.error;
+    var accounts = result.data || [];
+    var activeId = sessionStorage.getItem(ACTIVE_ID);
+    var active = accounts.find(function (account) { return account.account_id === activeId; }) || null;
+    var token = activeToken();
+    var activeView = "";
+    if (active && token && !active.password_initialized) {
+      clearAccountSession();
+      token = null;
+    }
+    if (active && token) {
+      var balancesResult = await supabase.rpc("get_account_balances", { p_access_token: token });
+      if (balancesResult.error) {
+        clearAccountSession();
+        token = null;
+        active = null;
+      } else {
+        var balances = balancesResult.data || [];
+        var movementsResult = await supabase.rpc("get_account_transactions", { p_access_token: token });
+        if (movementsResult.error) throw movementsResult.error;
+        var hasMoney = balances.some(function (b) { return Number(b.balance) > 0; });
+        activeView = '<section class="panel active-account"><div class="account-heading"><div><p class="eyebrow">CONTO APERTO</p><h2>' + esc(active.account_name) + (active.is_initial ? ' <span class="tag">Iniziale</span>' : '') + '</h2></div><button type="button" id="lock-account" class="secondary">Blocca conto</button></div>' +
+          '<div class="balance-grid">' + balances.map(function (balance) {
+            return '<article class="balance-card"><div class="currency">' + esc(balance.currency_name) + ' (' + esc(balance.currency) + ')</div><div class="amount">' + money(balance.balance, balance.currency) + '</div></article>';
+          }).join("") + '</div>' +
+          '<form id="transfer-form"><h3>Trasferisci a un altro conto</h3><div class="form-grid">' +
+          '<div class="field"><label for="recipient-account">Nome del conto destinatario</label><input id="recipient-account" name="recipient_account" minlength="2" maxlength="32" required></div>' +
+          '<div class="field"><label for="currency">Valuta</label><select id="currency" name="currency" required>' + balances.filter(function (b) { return Number(b.balance) > 0; }).map(function (b) { return '<option value="' + esc(b.currency) + '">' + esc(b.currency_name) + ' (' + esc(b.currency) + ') · ' + money(b.balance, b.currency) + '</option>'; }).join("") + '</select></div>' +
+          '<div class="field"><label for="amount">Importo</label><input id="amount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" required></div>' +
+          '<div class="field"><label for="description">Causale</label><input id="description" name="description" maxlength="120" placeholder="Descrizione del trasferimento" required></div>' +
+          '</div><div class="actions"><button type="submit" ' + (hasMoney ? '' : 'disabled') + '>Conferma trasferimento</button></div>' +
+          (hasMoney ? '' : '<p class="muted">Questo conto non ha ancora fondi trasferibili.</p>') + '</form>' +
+          '<h3>Movimenti recenti</h3>' + transactionTable(movementsResult.data || []) + '</section>';
+      }
+    }
+
+    var setupForm = "";
+    var initialUnconfigured = accounts.find(function (a) { return a.is_initial && !a.password_initialized; });
+    if (initialUnconfigured) {
+      setupForm = '<section class="panel"><h2>Completa il conto iniziale</h2><p>Il bonus assicurativo è già assegnato a questo conto. Imposta ora una password separata dall’account principale.</p>' +
+        '<form id="initial-password-form"><input type="hidden" name="account_name" value="' + esc(initialUnconfigured.account_name) + '"><div class="field"><label for="initial-account-password">Nuova password del conto (8–72 caratteri)</label><input id="initial-account-password" name="account_password" type="password" minlength="8" maxlength="72" autocomplete="new-password" required></div><div class="actions"><button type="submit">Imposta password e apri conto</button></div></form></section>';
+    }
+
+    content.innerHTML = pageHeader("accounts") +
+      (message ? '<p class="notice">' + esc(message) + '</p>' : '') +
+      '<section class="panel"><div class="account-heading"><div><h2>I tuoi conti</h2><p class="muted">Account principale: ' + esc(currentProfile.username) + ' · ' + accounts.length + ' di 4 conti utilizzati</p></div></div>' +
+      (accounts.length ? '<div class="account-list">' + accounts.map(function (a) {
+        return '<div class="account-row"><div><strong>' + esc(a.account_name) + '</strong><p class="muted">' + (a.is_initial ? 'Conto iniziale · riceve il bonus assicurativo una sola volta' : 'Conto aggiuntivo · nessun bonus iniziale') + '</p></div>' +
+          (a.password_initialized ? '<button type="button" class="open-account-button" data-account-name="' + esc(a.account_name) + '">Accedi</button>' : '<span class="tag">Da configurare</span>') + '</div>';
+      }).join("") + '</div>' : '<div class="empty">Nessun conto presente. Riprova il caricamento.</div>') +
+      '</section>' + setupForm + activeView +
+      (accounts.length < 4 ? '<section class="panel"><h2>Crea un altro conto</h2><p class="muted">Massimo quattro conti per account principale. Il bonus assicurativo viene assegnato esclusivamente al conto iniziale.</p><form id="create-account-form"><div class="form-grid">' +
+      '<div class="field"><label for="new-account-name">Nome del conto</label><input id="new-account-name" name="account_name" minlength="2" maxlength="32" required></div>' +
+      '<div class="field"><label for="new-account-password">Password del conto (8–72 caratteri)</label><input id="new-account-password" name="account_password" type="password" minlength="8" maxlength="72" autocomplete="new-password" required></div>' +
+      '</div><div class="actions"><button type="submit">Crea e apri conto</button></div></form></section>' : '<section class="panel"><p>Hai raggiunto il limite di quattro conti.</p></section>');
+
+    document.querySelectorAll(".open-account-button").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var name = button.dataset.accountName;
+        var password = window.prompt("Password del conto «" + name + "»:");
+        if (password === null) return;
+        unlockAccount(name, password);
+      });
+    });
+    var setup = document.getElementById("initial-password-form");
+    if (setup) setup.addEventListener("submit", setInitialPassword);
+    var create = document.getElementById("create-account-form");
+    if (create) create.addEventListener("submit", createAccount);
+    var transfer = document.getElementById("transfer-form");
+    if (transfer) transfer.addEventListener("submit", submitTransfer);
+    var lock = document.getElementById("lock-account");
+    if (lock) lock.addEventListener("click", function () { clearAccountSession(); renderAccounts("Conto bloccato."); });
   }
 
-  function transactionRows(rows, profileById, userId, full) {
-    if (!rows.length) return '<div class="empty">Nessuna transazione ancora registrata.</div>';
-    return '<div class="table-wrap"><table><thead><tr>' +
-      (full ? '<th>Riferimento</th>' : '') + '<th>Data</th><th>Operazione</th>' +
-      (full ? '<th>Mittente</th><th>Destinatario</th>' : '') + '<th>Importo</th></tr></thead><tbody>' +
+  function transactionTable(rows) {
+    if (!rows.length) return '<div class="empty">Nessun movimento registrato per questo conto.</div>';
+    return '<div class="table-wrap"><table><thead><tr><th>Data</th><th>Conto</th><th>Causale</th><th>Importo</th></tr></thead><tbody>' +
       rows.map(function (t) {
-        var outgoing = t.from_user === userId;
-        var from = profileById[t.from_user];
-        var to = profileById[t.to_user];
-        var date = new Date(t.created_at).toLocaleString("it-IT");
-        return '<tr>' + (full ? '<td>BE-' + esc(t.id) + '</td>' : '') +
-          '<td>' + esc(date) + '</td><td>' + esc(t.description) +
-          (full ? '' : '<br><small>' + (outgoing ? 'Destinatario: ' + esc(to ? to.username : "utente") : 'Mittente: ' + esc(from ? from.username : "utente")) + '</small>') +
-          '</td>' + (full ? '<td>' + esc(from ? from.username : "utente") + '</td><td>' + esc(to ? to.username : "utente") + '</td>' : '') +
-          '<td class="' + (outgoing ? 'amount-negative' : 'amount-positive') + '">' + (outgoing ? '−' : '+') + money(t.amount, t.currency) + '</td></tr>';
+        var outgoing = t.direction === "out";
+        return '<tr><td>' + esc(new Date(t.created_at).toLocaleString("it-IT")) + '</td><td>' + esc(outgoing ? t.to_account_name : t.from_account_name) + '</td><td>' + esc(t.description) + '</td><td class="' + (outgoing ? 'amount-negative' : 'amount-positive') + '">' + (outgoing ? '−' : '+') + money(t.amount, t.currency) + '</td></tr>';
       }).join("") + '</tbody></table></div>';
   }
 
-  async function submitTransaction(event) {
+  async function unlockAccount(name, password) {
+    try {
+      var result = await supabase.rpc("unlock_bank_account", { p_account_name: name, p_account_password: password });
+      if (result.error) throw result.error;
+      storeAccountSession(result.data[0]);
+      await renderAccounts("Conto aperto.");
+    } catch (error) {
+      showToast(friendlyError(error));
+    }
+  }
+  async function setInitialPassword(event) {
     event.preventDefault();
     var form = event.currentTarget;
     var button = form.querySelector('button[type="submit"]');
     button.disabled = true;
     try {
-      var result = await supabase.rpc("transfer_funds", {
-        recipient_username: form.elements.recipient.value,
-        transfer_currency: form.elements.currency.value,
-        transfer_amount: Number(form.elements.amount.value),
-        transfer_description: form.elements.description.value.trim()
+      var result = await supabase.rpc("set_initial_account_password", {
+        p_account_name: form.elements.account_name.value,
+        p_account_password: form.elements.account_password.value
+      });
+      if (result.error) throw result.error;
+      storeAccountSession(result.data[0]);
+      await renderAccounts("Password impostata. Il conto iniziale è aperto.");
+    } catch (error) {
+      showToast(friendlyError(error));
+      button.disabled = false;
+    }
+  }
+  async function createAccount(event) {
+    event.preventDefault();
+    var form = event.currentTarget;
+    var button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      var result = await supabase.rpc("create_bank_account", {
+        p_account_name: form.elements.account_name.value.trim(),
+        p_account_password: form.elements.account_password.value
+      });
+      if (result.error) throw result.error;
+      storeAccountSession(result.data[0]);
+      await renderAccounts("Conto creato e aperto. Nessun bonus iniziale è stato assegnato.");
+    } catch (error) {
+      showToast(friendlyError(error));
+      button.disabled = false;
+    }
+  }
+  async function submitTransfer(event) {
+    event.preventDefault();
+    var form = event.currentTarget;
+    var button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      var result = await supabase.rpc("transfer_between_accounts", {
+        p_access_token: activeToken(),
+        p_recipient_account_name: form.elements.recipient_account.value.trim(),
+        p_currency: form.elements.currency.value,
+        p_amount: Number(form.elements.amount.value),
+        p_description: form.elements.description.value.trim()
       });
       if (result.error) throw result.error;
       showToast("Trasferimento completato. Riferimento BE-" + result.data + ".");
-      await renderApp();
+      await renderAccounts();
     } catch (error) {
       showToast(friendlyError(error));
       button.disabled = false;
@@ -234,44 +309,63 @@
   }
 
   async function renderEmpires() {
-    var [empiresResult, summaryResult] = await Promise.all([
-      supabase.from("empires").select("id, name, leader").order("id"),
-      supabase.rpc("get_empire_summary")
+    var results = await Promise.all([
+      supabase.from("empires").select("id,name,leader,whatsapp_member_count,selected_insurance_plan_id").order("id"),
+      supabase.from("insurance_plans").select("id,code,name,initial_bonus,government_cost,currency,active").eq("active", true).order("initial_bonus"),
+      supabase.rpc("get_empire_summary"),
+      supabase.from("currencies").select("code,name").eq("enabled", true).order("code")
     ]);
-    if (empiresResult.error) throw empiresResult.error;
-    if (summaryResult.error) throw summaryResult.error;
+    results.forEach(function (result) { if (result.error) throw result.error; });
+    var empires = results[0].data || [];
+    var plans = results[1].data || [];
+    var summary = results[2].data || [];
+    var currencies = results[3].data || [];
     var grouped = {};
-    (summaryResult.data || []).forEach(function (row) {
+    summary.forEach(function (row) {
       if (!grouped[row.empire_id]) grouped[row.empire_id] = {};
       grouped[row.empire_id][row.currency] = row;
     });
     content.innerHTML = pageHeader("empires") +
-      '<p class="muted">Il patrimonio complessivo è mostrato separatamente per valuta: saldi dei cittadini + fondi governativi. Non vengono sommati valori di valute diverse.</p>' +
-      '<div class="empire-grid">' + (empiresResult.data || []).map(function (empire) {
-        var currenciesHtml = Object.keys(currencies).map(function (code) {
-          var row = (grouped[empire.id] || {})[code] || {};
+      '<p class="muted">I valori delle assicurazioni sono temporanei. Il conteggio WhatsApp è un dato registrato manualmente: la sincronizzazione automatica non è ancora implementata.</p>' +
+      '<div class="empire-grid">' + empires.map(function (empire) {
+        var plan = plans.find(function (p) { return p.id === empire.selected_insurance_plan_id; });
+        var firstCurrency = currencies.length ? currencies[0].code : "SOL";
+        var firstRow = (grouped[empire.id] || {})[firstCurrency] || {};
+        var lines = currencies.map(function (currency) {
+          var row = (grouped[empire.id] || {})[currency.code] || {};
           var citizenTotal = Number(row.citizen_total || 0);
           var governmentTotal = Number(row.government_total || 0);
-          return '<div class="currency-line"><span>' + code + ' <small>(cittadini ' + money(citizenTotal, code) + ' + Stato ' + money(governmentTotal, code) + ')</small></span><strong>' + money(citizenTotal + governmentTotal, code) + '</strong></div>';
+          return '<div class="currency-line"><span>' + esc(currency.name) + ' (' + esc(currency.code) + ')<small class="line-detail">Cittadini: ' + money(citizenTotal, currency.code) + ' · Stato: ' + money(governmentTotal, currency.code) + '</small></span><strong>' + money(citizenTotal + governmentTotal, currency.code) + '</strong></div>';
         }).join("");
-        return '<article class="empire-card"><h2>' + esc(empire.name) + '</h2><p>Leader indicato: ' + esc(empire.leader || "Non definito") + '<br>Utenti registrati: ' + Number((grouped[empire.id] || {}).SOL && (grouped[empire.id].SOL.citizen_count) || 0) + '</p><h3>Patrimonio complessivo per valuta</h3><div class="currency-list">' + currenciesHtml + '</div></article>';
-      }).join("") + '</div>';
+        return '<article class="empire-card"><h2>' + esc(empire.name) + '</h2><p>Leader indicato: ' + esc(empire.leader || "Non definito") +
+          '<br>Membri WhatsApp registrati: ' + Number(empire.whatsapp_member_count || 0) +
+          '<br>Cittadini con account: ' + Number(firstRow.citizen_count || 0) +
+          '</p><h3>Assicurazione attuale</h3><p>' + esc(plan ? plan.name : "Non configurata") + (plan ? '<br>Bonus iniziale: ' + money(plan.initial_bonus, plan.currency) + '<br>Costo indicativo: ' + money(plan.government_cost, plan.currency) : '') +
+          '</p><h3>Patrimonio per valuta</h3><div class="currency-list">' + lines + '</div></article>';
+      }).join("") + '</div>' +
+      '<section class="panel"><h2>Assicurazioni dimostrative</h2><p class="muted">Per ora sono tre esempi. La pagina di gestione per gli imperatori arriverà in una versione successiva.</p><div class="plan-grid">' + plans.map(function (plan) {
+        return '<article class="plan-card"><h3>' + esc(plan.name) + '</h3><p>Bonus sul conto iniziale</p><strong>' + money(plan.initial_bonus, plan.currency) + '</strong><p>Costo indicativo per l’impero</p><strong>' + money(plan.government_cost, plan.currency) + '</strong></article>';
+      }).join("") + '</div></section>';
   }
 
   async function renderLedger() {
-    var [transactionResult, profiles] = await Promise.all([
-      supabase.from("transactions").select("id, from_user, to_user, currency, amount, description, created_at").or("from_user.eq." + currentUser.id + ",to_user.eq." + currentUser.id).order("created_at", { ascending: false }).limit(100),
-      fetchProfiles()
-    ]);
-    if (transactionResult.error) throw transactionResult.error;
-    var profileById = {};
-    profiles.forEach(function (p) { profileById[p.id] = p; });
-    content.innerHTML = pageHeader("ledger") + '<section class="panel"><h2>Transazioni registrate</h2>' +
-      transactionRows(transactionResult.data || [], profileById, currentUser.id, true) + '</section>';
+    var token = activeToken();
+    if (!token) {
+      content.innerHTML = pageHeader("ledger") + '<section class="panel"><p>Apri un conto nella pagina Conti per consultare il suo libro mastro.</p><a class="button-link" href="#accounts">Vai a Conti</a></section>';
+      return;
+    }
+    var result = await supabase.rpc("get_account_transactions", { p_access_token: token });
+    if (result.error) {
+      clearAccountSession();
+      content.innerHTML = pageHeader("ledger") + '<section class="panel"><p>' + esc(friendlyError(result.error)) + '</p><a class="button-link" href="#accounts">Torna a Conti</a></section>';
+      return;
+    }
+    content.innerHTML = pageHeader("ledger") + '<section class="panel"><h2>Movimenti del conto aperto</h2>' + transactionTable(result.data || []) + '</section>';
   }
 
   logoutButton.addEventListener("click", async function () {
     logoutButton.disabled = true;
+    clearAccountSession();
     var result = await supabase.auth.signOut();
     logoutButton.disabled = false;
     if (result.error) showToast(friendlyError(result.error));
@@ -280,9 +374,9 @@
   supabase.auth.onAuthStateChange(function (_event, session) {
     currentUser = session ? session.user : null;
     currentProfile = null;
+    if (!currentUser) clearAccountSession();
     window.setTimeout(function () { renderApp(); }, 0);
   });
-
   async function init() {
     setNotice("<strong>Bank Empire:</strong> collegamento al database condiviso.");
     var result = await supabase.auth.getSession();
