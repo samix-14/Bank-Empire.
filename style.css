@@ -71,3 +71,23 @@ footer { padding: 18px 20px; text-align: center; border-top: 1px solid var(--bor
   .panel { padding: 14px; }
   th, td { padding: 10px 8px; }
 }
+
+/* Bank Empire 0.7: conti separati */
+.account-heading { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; }
+.account-heading h2 { margin-bottom: 6px; }
+.account-list { display: grid; gap: 10px; margin-top: 14px; }
+.account-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 13px; border: 1px solid var(--border); border-radius: 8px; background: #141f31; }
+.account-row p { margin: 5px 0 0; font-size: 12px; }
+.secondary { color: #e8edf5; background: #26344a; border-color: #46536a; }
+.tag { display: inline-block; padding: 4px 8px; border-radius: 999px; background: #303d52; color: #dce4f0; font-size: 11px; font-weight: 700; vertical-align: middle; }
+.eyebrow { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .12em; margin: 0 0 6px; }
+.line-detail { display: block; margin-top: 5px; line-height: 1.5; }
+.plan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.plan-card { padding: 15px; border: 1px solid var(--border); border-radius: 9px; background: #141f31; }
+.plan-card p { color: var(--muted); font-size: 12px; margin: 12px 0 4px; }
+.plan-card strong { display: block; font-size: 18px; }
+.button-link { display: inline-block; padding: 9px 14px; border: 1px solid #8b713e; border-radius: 7px; background: var(--accent); color: #1c1a15; font-weight: 750; }
+@media (max-width: 520px) {
+  .account-row { align-items: flex-start; }
+  .account-row button { flex-shrink: 0; }
+}
