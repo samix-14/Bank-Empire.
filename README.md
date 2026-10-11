@@ -56,6 +56,6 @@ Apri `index.html` con un browser moderno o pubblica il repository su un host sta
 - `index.html`: struttura e navigazione.
 - `style.css`: stile responsive.
 - `script.js`: autenticazione, conti, trasferimenti, imperi e libro mastro.
-- `supabase/migrations/`: SQL per riprodurre le modifiche al database.
+- `supabase/migrations/`: contiene la migrazione di hardening 0.7. Nota: le migrazioni iniziali e quelle precedenti sono state applicate direttamente al progetto Supabase e non sono ancora versionate in questo repository, quindi questa cartella da sola non ricrea un database vuoto da zero.
 - `README.md`: documentazione.
 - `CHANGELOG.md`: cronologia delle versioni.
