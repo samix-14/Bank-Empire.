@@ -1,12 +1,13 @@
 # Bank Empire
 
-Bank Empire è un prototipo web di economia virtuale multivaluta collegato a Supabase. La versione 0.7 introduce conti separati e password dedicate, mantenendo un solo account principale per utente.
+Bank Empire è un prototipo web di economia virtuale multivaluta collegato a Supabase. La versione 0.8 aggiunge il cambio valuta atomico con tassi configurabili nel database, mantenendo un solo account principale per utente.
 
 ## Pagine
 
 - **Conti**: crea e sblocca fino a quattro conti, visualizza i saldi per valuta e trasferisci fondi a un altro conto.
 - **Imperi**: mostra il patrimonio aggregato dei cittadini e il fondo statale per valuta, il numero di membri WhatsApp registrato e l'assicurazione attualmente assegnata all'impero.
-- **Libro mastro**: mostra i movimenti del conto aperto.
+- **Libro mastro**: mostra i trasferimenti e i cambi valuta del conto aperto.
+- **Cambio valuta**: converte fondi tra valute secondo i tassi attivi in `exchange_rates`, con anteprima, conferma e registrazione nel libro mastro.
 
 ## Account e conti
 
@@ -17,7 +18,7 @@ Bank Empire è un prototipo web di economia virtuale multivaluta collegato a Sup
 - Il conto iniziale riceve il bonus dell'assicurazione selezionata dall'impero. I conti aggiuntivi non ricevono bonus.
 - Le password dei conti sono memorizzate come hash bcrypt nel database. Dopo lo sblocco, il server rilascia un token temporaneo valido otto ore; il token grezzo resta nella sessione della scheda e nel database è salvato solo il suo hash.
 - Saldi, trasferimenti e movimenti dei conti vengono letti e modificati tramite funzioni SQL con controlli server-side.
-- Il catalogo valute è basato su una tabella: i conti non sono limitati a tre valute. Per ora il cambio valuta non è ancora implementato; i trasferimenti avvengono nella stessa valuta.
+- Il catalogo valute è basato su una tabella: i conti non sono limitati a tre valute. Il cambio valuta è implementato dalla versione 0.8 tramite la migrazione `migrations/20261014_bank_empire_v08_currency_exchange.sql`. I tassi iniziali 1:1 sono segnaposto dimostrativi, non valori economici realistici: aggiornarli in `public.exchange_rates` prima di usare il cambio come meccanica economica effettiva. I trasferimenti tra conti avvengono ancora nella stessa valuta.
 
 ## Imperi e assicurazioni
 
@@ -43,7 +44,7 @@ Il database esistente è stato esteso senza cancellare le tabelle precedenti di 
 
 Apri `index.html` con un browser moderno o pubblica il repository su un host statico come Vercel. Supabase JS viene caricato da CDN; non è richiesto un processo di build.
 
-## Limiti della versione 0.7
+## Limiti della versione 0.8
 
 - Non è denaro reale e non gestisce pagamenti.
 - Il cambio valuta, il marketplace, le aziende e i poteri degli imperatori non sono ancora implementati.
