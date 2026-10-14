@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8
+
+- Aggiunta la pagina Cambio valuta con anteprima del tasso e dell’importo ricevuto.
+- Aggiunte conversioni atomiche server-side tra valute dello stesso conto, con controllo del saldo e arrotondamento a due decimali.
+- Aggiunta la tabella `exchange_rates` per configurare tassi e abilitazione delle coppie.
+- Aggiunto il registro separato dei cambi valuta e la relativa sezione nel Libro mastro.
+- I tassi iniziali sono segnaposto 1:1 e vanno aggiornati prima dell’uso economico effettivo.
+- Aggiunta la migrazione SQL `migrations/20261014_bank_empire_v08_currency_exchange.sql`.
+
 ## 0.7
 
 - Introdotto il modello con un account principale e fino a quattro conti separati per utente.
