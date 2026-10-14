@@ -38,7 +38,7 @@ I fondi statali sono conservati in una tabella separata per valuta. I vecchi cam
 
 Le modifiche di saldo vengono eseguite sul server in transazioni SQL. Le tabelle interne dei conti non sono direttamente leggibili dal browser: l'accesso passa attraverso funzioni che controllano l'utente autenticato e il token del conto. Il progetto usa una publishable key nel frontend; non inserire mai una service-role key o una chiave segreta nel codice client.
 
-Il database esistente è stato esteso senza cancellare le tabelle precedenti di portafogli e transazioni. La nuova interfaccia usa le tabelle dei conti. I trasferimenti legacy restano nel database per compatibilità, ma non sono più mostrati nell'interfaccia 0.7.
+Il database esistente è stato esteso senza cancellare le tabelle precedenti di portafogli e transazioni. La nuova interfaccia usa le tabelle dei conti. I trasferimenti legacy restano nel database per compatibilità, ma non sono mostrati nell'interfaccia 0.8.
 
 ## Avvio
 
@@ -47,7 +47,7 @@ Apri `index.html` con un browser moderno o pubblica il repository su un host sta
 ## Limiti della versione 0.8
 
 - Non è denaro reale e non gestisce pagamenti.
-- Il cambio valuta, il marketplace, le aziende e i poteri degli imperatori non sono ancora implementati.
+- Il marketplace, le aziende e la gestione delle assicurazioni da parte degli imperatori non sono ancora implementati.
 - Il conteggio dei membri WhatsApp è manuale.
 - Le tre assicurazioni e i loro importi sono dimostrativi.
 - L'app non è ancora stata sottoposta a un audit di sicurezza completo o a test di carico.
@@ -56,7 +56,7 @@ Apri `index.html` con un browser moderno o pubblica il repository su un host sta
 
 - `index.html`: struttura e navigazione.
 - `style.css`: stile responsive.
-- `script.js`: autenticazione, conti, trasferimenti, imperi e libro mastro.
-- `supabase/migrations/`: contiene la migrazione di hardening 0.7. Nota: le migrazioni iniziali e quelle precedenti sono state applicate direttamente al progetto Supabase e non sono ancora versionate in questo repository, quindi questa cartella da sola non ricrea un database vuoto da zero.
+- `script.js`: autenticazione, conti, trasferimenti, cambio valuta, imperi e libro mastro.
+- `migrations/20261014_bank_empire_v08_currency_exchange.sql`: migrazione del cambio valuta 0.8. Le migrazioni iniziali e quelle precedenti sono state applicate direttamente al progetto Supabase e non sono ancora tutte versionate in questo repository, quindi le migrazioni presenti non ricreano da sole un database vuoto da zero.
 - `README.md`: documentazione.
 - `CHANGELOG.md`: cronologia delle versioni.
