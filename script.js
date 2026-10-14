@@ -1,4 +1,4 @@
-/* Bank Empire 0.7: conti separati, accesso per conto e imperi. */
+/* Bank Empire 0.8: conti separati, imperi e cambio valuta. */
 (function () {
   "use strict";
   var SUPABASE_URL = "https://iprquijkhvugvzfjvibe.supabase.co";
@@ -9,7 +9,8 @@
   var pageTitles = {
     accounts: { title: "Conti", description: "Gestisci fino a quattro conti separati. Ogni conto ha una password propria e saldi indipendenti per valuta." },
     empires: { title: "Imperi", description: "Patrimonio dei cittadini, fondi statali e assicurazioni dimostrative configurate per ciascun impero." },
-    ledger: { title: "Libro mastro", description: "Movimenti del conto attualmente aperto. Per leggere il registro devi prima sbloccare un conto." }
+    ledger: { title: "Libro mastro", description: "Movimenti del conto aperto, inclusi trasferimenti e cambi valuta." },
+    exchange: { title: "Cambio valuta", description: "Converti fondi tra valute usando i tassi configurati nel database. I tassi iniziali sono segnaposto dimostrativi." }
   };
   var content = document.getElementById("page-content");
   var authPanel = document.getElementById("auth-panel");
@@ -138,6 +139,7 @@
       });
       if (page === "accounts") await renderAccounts();
       else if (page === "empires") await renderEmpires();
+      else if (page === "exchange") await renderExchange();
       else await renderLedger();
     } catch (error) {
       content.innerHTML = '<section class="panel"><h2>Non riesco a caricare i dati</h2><p>' + esc(friendlyError(error)) + '</p><button id="retry-load" type="button">Riprova</button></section>';
@@ -308,6 +310,113 @@
     }
   }
 
+
+  async function renderExchange() {
+    var token = activeToken();
+    if (!token) {
+      content.innerHTML = pageHeader("exchange") + '<section class="panel"><p>Per cambiare valuta devi prima aprire un conto nella pagina Conti.</p><a class="button-link" href="#accounts">Vai a Conti</a></section>';
+      return;
+    }
+    var results = await Promise.all([
+      supabase.rpc("get_account_balances", { p_access_token: token }),
+      supabase.rpc("get_exchange_rates")
+    ]);
+    results.forEach(function (result) { if (result.error) throw result.error; });
+    var balances = results[0].data || [];
+    var rates = results[1].data || [];
+    if (!rates.length) {
+      content.innerHTML = pageHeader("exchange") + '<section class="panel"><h2>Nessun tasso disponibile</h2><p>Il database non contiene coppie di cambio attive. Controlla la migrazione 0.8 e la tabella dei tassi.</p></section>';
+      return;
+    }
+    var currencyMap = {};
+    balances.forEach(function (b) { currencyMap[b.currency] = { code: b.currency, name: b.currency_name, balance: Number(b.balance || 0) }; });
+    rates.forEach(function (r) {
+      if (!currencyMap[r.from_currency]) currencyMap[r.from_currency] = { code: r.from_currency, name: r.from_currency_name, balance: 0 };
+      if (!currencyMap[r.to_currency]) currencyMap[r.to_currency] = { code: r.to_currency, name: r.to_currency_name, balance: 0 };
+    });
+    var currencies = Object.keys(currencyMap).sort().map(function (code) { return currencyMap[code]; });
+    var initialFrom = (currencies.find(function (c) { return c.balance > 0; }) || currencies[0]).code;
+    var initialRate = rates.find(function (r) { return r.from_currency === initialFrom; }) || rates[0];
+    var currencyOptions = currencies.map(function (c) {
+      return '<option value="' + esc(c.code) + '">' + esc(c.name) + ' (' + esc(c.code) + ') · saldo ' + money(c.balance, c.code) + '</option>';
+    }).join("");
+    content.innerHTML = pageHeader("exchange") +
+      '<section class="panel exchange-panel"><div class="exchange-warning"><strong>Tassi dimostrativi:</strong> i tassi iniziali sono impostati a 1:1 come segnaposto. Non rappresentano valori economici reali e possono essere modificati nel database.</div>' +
+      '<form id="exchange-form"><div class="form-grid">' +
+      '<div class="field"><label for="exchange-from">Da valuta</label><select id="exchange-from" name="from_currency" required>' + currencyOptions + '</select></div>' +
+      '<div class="field"><label for="exchange-to">A valuta</label><select id="exchange-to" name="to_currency" required>' + currencyOptions + '</select></div>' +
+      '<div class="field full"><label for="exchange-amount">Importo da convertire</label><input id="exchange-amount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required></div>' +
+      '<div class="field full"><label for="exchange-description">Causale (facoltativa)</label><input id="exchange-description" name="description" maxlength="120" placeholder="Cambio valuta"></div>' +
+      '</div><div id="exchange-preview" class="exchange-preview" aria-live="polite"></div>' +
+      '<div class="actions"><button type="submit">Conferma cambio</button><button type="button" class="secondary" id="exchange-refresh">Aggiorna tassi e saldi</button></div></form></section>' +
+      '<section class="panel"><h2>Tassi attivi</h2><div class="table-wrap"><table><thead><tr><th>Coppia</th><th>Tasso</th><th>Aggiornato</th></tr></thead><tbody>' +
+      rates.map(function (r) {
+        return '<tr><td>' + esc(r.from_currency) + ' → ' + esc(r.to_currency) + '</td><td>' + Number(r.rate).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 8 }) + '</td><td>' + esc(new Date(r.updated_at).toLocaleString("it-IT")) + '</td></tr>';
+      }).join("") + '</tbody></table></div><p class="muted">Il tasso indica quante unità della valuta di destinazione ricevi per 1 unità della valuta di partenza.</p></section>';
+    var form = document.getElementById("exchange-form");
+    var fromSelect = form.elements.from_currency;
+    var toSelect = form.elements.to_currency;
+    var amountInput = form.elements.amount;
+    fromSelect.value = initialFrom;
+    toSelect.value = initialRate.to_currency;
+    function updatePreview() {
+      var from = fromSelect.value;
+      var to = toSelect.value;
+      var amount = Number(amountInput.value || 0);
+      var rate = rates.find(function (r) { return r.from_currency === from && r.to_currency === to; });
+      var preview = document.getElementById("exchange-preview");
+      var submit = form.querySelector('button[type="submit"]');
+      if (!rate || from === to) {
+        preview.innerHTML = '<p class="amount-negative">Coppia di valute non disponibile. Scegli due valute diverse.</p>';
+        submit.disabled = true;
+        return;
+      }
+      var balance = currencyMap[from] ? currencyMap[from].balance : 0;
+      var received = Math.round((amount * Number(rate.rate) + Number.EPSILON) * 100) / 100;
+      preview.innerHTML = '<p><strong>1 ' + esc(from) + ' = ' + Number(rate.rate).toLocaleString("it-IT", { maximumFractionDigits: 8 }) + ' ' + esc(to) + '</strong></p>' +
+        '<div class="exchange-result"><div><span>Spenderai</span><strong>' + money(amount, from) + '</strong></div><span class="exchange-arrow">→</span><div><span>Riceverai</span><strong>' + money(received, to) + '</strong></div></div>' +
+        '<p class="' + (amount > balance ? 'amount-negative' : 'muted') + '">Saldo disponibile: ' + money(balance, from) + (amount > balance ? ' · saldo insufficiente' : '') + '</p>';
+      submit.disabled = !(amount > 0 && Number.isFinite(amount) && Math.round(amount * 100) === amount * 100 && amount <= balance && received > 0);
+    }
+    fromSelect.addEventListener("change", function () {
+      var next = rates.find(function (r) { return r.from_currency === fromSelect.value && r.to_currency !== fromSelect.value; });
+      if (next) toSelect.value = next.to_currency;
+      updatePreview();
+    });
+    toSelect.addEventListener("change", updatePreview);
+    amountInput.addEventListener("input", updatePreview);
+    document.getElementById("exchange-refresh").addEventListener("click", renderExchange);
+    form.addEventListener("submit", async function (event) {
+      event.preventDefault();
+      var button = form.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try {
+        var result = await supabase.rpc("exchange_account_currency", {
+          p_access_token: activeToken(),
+          p_from_currency: fromSelect.value,
+          p_to_currency: toSelect.value,
+          p_amount: Number(amountInput.value),
+          p_description: form.elements.description.value.trim() || "Cambio valuta"
+        });
+        if (result.error) throw result.error;
+        showToast("Cambio completato. Riferimento EX-" + result.data + ".");
+        await renderExchange();
+      } catch (error) {
+        showToast(friendlyError(error));
+        button.disabled = false;
+      }
+    });
+    updatePreview();
+  }
+
+  function exchangeTransactionTable(rows) {
+    if (!rows.length) return '<div class="empty">Nessun cambio valuta registrato per questo conto.</div>';
+    return '<div class="table-wrap"><table><thead><tr><th>Data</th><th>Causale</th><th>Valuta ceduta</th><th>Valuta ricevuta</th><th>Tasso</th></tr></thead><tbody>' +
+      rows.map(function (x) {
+        return '<tr><td>' + esc(new Date(x.created_at).toLocaleString("it-IT")) + '</td><td>' + esc(x.description) + '</td><td class="amount-negative">−' + money(x.from_amount, x.from_currency) + '</td><td class="amount-positive">+' + money(x.to_amount, x.to_currency) + '</td><td>1 ' + esc(x.from_currency) + ' = ' + Number(x.exchange_rate).toLocaleString("it-IT", { maximumFractionDigits: 8 }) + ' ' + esc(x.to_currency) + '</td></tr>';
+      }).join("") + '</tbody></table></div>';
+  }
+
   async function renderEmpires() {
     var results = await Promise.all([
       supabase.from("empires").select("id,name,leader,whatsapp_member_count,selected_insurance_plan_id").order("id"),
@@ -360,7 +469,14 @@
       content.innerHTML = pageHeader("ledger") + '<section class="panel"><p>' + esc(friendlyError(result.error)) + '</p><a class="button-link" href="#accounts">Torna a Conti</a></section>';
       return;
     }
-    content.innerHTML = pageHeader("ledger") + '<section class="panel"><h2>Movimenti del conto aperto</h2>' + transactionTable(result.data || []) + '</section>';
+    var exchangeResult = await supabase.rpc("get_account_exchange_transactions", { p_access_token: token });
+    if (exchangeResult.error) {
+      content.innerHTML = pageHeader("ledger") + '<section class="panel"><p>Impossibile caricare i cambi valuta: ' + esc(friendlyError(exchangeResult.error)) + '</p></section>';
+      return;
+    }
+    content.innerHTML = pageHeader("ledger") +
+      '<section class="panel"><h2>Trasferimenti tra conti</h2>' + transactionTable(result.data || []) + '</section>' +
+      '<section class="panel"><h2>Cambi valuta</h2>' + exchangeTransactionTable(exchangeResult.data || []) + '</section>';
   }
 
   logoutButton.addEventListener("click", async function () {
