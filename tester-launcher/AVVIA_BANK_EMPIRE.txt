@@ -2,7 +2,6 @@
 setlocal
 title Bank Empire 0.8 - Launcher
 cd /d "%~dp0"
-set "SCRIPT=%TEMP%\Avvia-Bank-Empire-%RANDOM%.ps1"
 echo Download del launcher...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "try { Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/samix-14/Bank-Empire./0.8/tester-launcher/Avvia-Bank-Empire.ps1' -OutFile $env:TEMP\Avvia-Bank-Empire-Launcher.ps1; & $env:TEMP\Avvia-Bank-Empire-Launcher.ps1 } catch { Write-Host 'Errore nel download del launcher. Controlla Internet e riprova.' -ForegroundColor Red; Read-Host 'Premi INVIO per chiudere'; exit 1 }"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; try { $launcher = Join-Path $env:TEMP 'Avvia-Bank-Empire-Launcher.ps1'; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/samix-14/Bank-Empire./0.8/tester-launcher/Avvia-Bank-Empire.ps1' -OutFile $launcher; & $launcher } catch { Write-Host 'Errore nel download del launcher. Controlla Internet e riprova.' -ForegroundColor Red; Read-Host 'Premi INVIO per chiudere'; exit 1 }"
 endlocal
