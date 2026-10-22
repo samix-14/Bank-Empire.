@@ -133,6 +133,37 @@ begin
 end;
 $;
 
+
+create or replace function public.be_admin_list_account_balances()
+returns table(username text, role text, empire_id text, account_name text, currency text, balance numeric, account_created_at timestamptz)
+language plpgsql stable security definer set search_path=public
+as $
+begin
+  if not public.be_has_role(array['admin_supremo']) then raise exception 'Permesso negato.'; end if;
+  return query
+    select p.username,p.role,p.empire_id,a.name,b.currency,b.balance,a.created_at
+    from public.profiles p
+    join public.bank_accounts a on a.owner_id=p.id
+    join public.account_balances b on b.account_id=a.id
+    order by p.username,a.created_at,b.currency limit 2000;
+end;
+$;
+
+create or replace function public.be_admin_list_exchange_transactions()
+returns table(transaction_id bigint, created_at timestamptz, username text, account_name text, from_currency text, from_amount numeric, to_currency text, to_amount numeric, exchange_rate numeric, description text)
+language plpgsql stable security definer set search_path=public
+as $
+begin
+  if not public.be_has_role(array['admin_supremo']) then raise exception 'Permesso negato.'; end if;
+  return query
+    select x.id,x.created_at,p.username,a.name,x.from_currency,x.from_amount,x.to_currency,x.to_amount,x.exchange_rate,x.description
+    from public.account_exchange_transactions x
+    join public.bank_accounts a on a.id=x.account_id
+    join public.profiles p on p.id=a.owner_id
+    order by x.created_at desc limit 500;
+end;
+$;
+
 create or replace function public.be_admin_list_transactions()
 returns table(transaction_id bigint, created_at timestamptz, from_account text, from_username text, to_account text, to_username text, currency text, amount numeric, description text)
 language plpgsql stable security definer set search_path=public
