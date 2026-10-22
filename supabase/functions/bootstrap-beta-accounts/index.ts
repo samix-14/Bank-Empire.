@@ -24,6 +24,7 @@ Deno.serve(async (req) => {
   const allowed = ["imperatore", "banchiere_supremo", "admin_supremo"];
   const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
   const seen = new Set<string>();
+  const selectedRoles = new Set<string>();
   const results = [];
 
   for (const account of input.accounts) {
@@ -31,10 +32,14 @@ Deno.serve(async (req) => {
     const password = String(account.password || "");
     if (!/^[A-Za-z0-9_]{3,24}$/.test(username) || password.length < 10 || password.length > 72 ||
         !allowed.includes(account.role) || !["auroria", "nova", "vesper"].includes(account.empire_id) ||
-        seen.has(username.toLowerCase())) {
+        seen.has(username.toLowerCase()) || selectedRoles.has(account.role)) {
       return reply({ error: "Dati non validi: username/password/ruolo/impero duplicato o non conforme." }, 400);
     }
     seen.add(username.toLowerCase());
+    selectedRoles.add(account.role);
+  }
+  if (["imperatore", "banchiere_supremo", "admin_supremo"].some((role) => !selectedRoles.has(role))) {
+    return reply({ error: "La beta richiede esattamente un account per ciascun ruolo: imperatore, banchiere_supremo e admin_supremo." }, 400);
   }
 
   for (const account of input.accounts) {
