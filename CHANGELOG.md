@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9
+
+- Aggiunto un sistema di ruoli persistenti verificati dal database: cittadino, Imperatore, Banchiere Supremo, Admin Supremo e ruoli futuri.
+- Il login consente username o email; gli account creati dall’Admin Supremo usano credenziali Supabase Auth.
+- Aggiunta dashboard Imperatore per configurazione impero, assicurazioni, regole fiscali e messaggi ai membri.
+- Aggiunta dashboard Banchiere Supremo per creazione/rimozione di denaro con causale e audit log.
+- Aggiunta dashboard Admin Supremo per creazione account, gestione ruoli, ban temporanei, messaggi, transazioni e audit log.
+- Aggiunte migrazione SQL e Edge Functions per creazione account e bootstrap protetto dei tre account beta.
+- La migrazione e le Edge Functions richiedono attivazione esplicita su Supabase; le tasse sono salvate ma non ancora applicate automaticamente alle transazioni.
+
+
 ## 0.8
 
 - Aggiunta la pagina Cambio valuta con anteprima del tasso e dell’importo ricevuto.
