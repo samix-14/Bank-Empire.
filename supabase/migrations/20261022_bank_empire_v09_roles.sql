@@ -41,11 +41,17 @@ create table if not exists public.user_messages (
   sender_id uuid references auth.users(id) on delete set null,
   recipient_id uuid references auth.users(id) on delete cascade,
   empire_id text references public.empires(id) on delete cascade,
+  is_global boolean not null default false,
   subject text not null check (char_length(trim(subject)) between 1 and 100),
   body text not null check (char_length(trim(body)) between 1 and 2000),
   created_at timestamptz not null default now(),
-  check (recipient_id is not null or empire_id is not null)
+  check (recipient_id is not null or empire_id is not null or is_global)
 );
+
+alter table public.user_messages add column if not exists is_global boolean not null default false;
+alter table public.user_messages drop constraint if exists user_messages_check;
+alter table public.user_messages add constraint user_messages_delivery_check
+  check (recipient_id is not null or empire_id is not null or is_global);
 
 -- Sync bans to Supabase Auth so suspended users cannot sign in or refresh normally.
 create or replace function public.be_sync_auth_ban()
@@ -218,6 +224,8 @@ as $$
 declare v_id bigint;
 begin
   if not public.be_has_role(array['admin_supremo']) then raise exception 'Permesso negato.'; end if;
+  if p_user_id is null or not exists(select 1 from public.profiles where id=p_user_id) then raise exception 'Destinatario non trovato.'; end if;
+  if char_length(trim(coalesce(p_subject,''))) not between 1 and 100 or char_length(trim(coalesce(p_body,''))) not between 1 and 2000 then raise exception 'Oggetto o messaggio non valido.'; end if;
   insert into public.user_messages(sender_id,recipient_id,subject,body)
   values(auth.uid(),p_user_id,trim(p_subject),trim(p_body)) returning id into v_id;
   insert into public.admin_audit_log(actor_id,action,target_user_id,details)
@@ -232,8 +240,9 @@ as $$
 declare v_id bigint;
 begin
   if not public.be_has_role(array['admin_supremo']) then raise exception 'Permesso negato.'; end if;
-  insert into public.user_messages(sender_id,subject,body)
-  values(auth.uid(),trim(p_subject),trim(p_body)) returning id into v_id;
+  if char_length(trim(coalesce(p_subject,''))) not between 1 and 100 or char_length(trim(coalesce(p_body,''))) not between 1 and 2000 then raise exception 'Oggetto o messaggio non valido.'; end if;
+  insert into public.user_messages(sender_id,subject,body,is_global)
+  values(auth.uid(),trim(p_subject),trim(p_body),true) returning id into v_id;
   insert into public.admin_audit_log(actor_id,action,details)
   values(auth.uid(),'global_message_sent',jsonb_build_object('message_id',v_id,'subject',left(p_subject,100)));
   return v_id;
@@ -304,6 +313,7 @@ begin
   if not public.be_has_role(array['imperatore','admin_supremo']) then raise exception 'Permesso negato.'; end if;
   select empire_id into v_empire from public.profiles where id=auth.uid();
   if v_empire is null then raise exception 'Impero non trovato.'; end if;
+  if char_length(trim(coalesce(p_subject,''))) not between 1 and 100 or char_length(trim(coalesce(p_body,''))) not between 1 and 2000 then raise exception 'Oggetto o messaggio non valido.'; end if;
   insert into public.user_messages(sender_id,empire_id,subject,body)
   values(auth.uid(),v_empire,trim(p_subject),trim(p_body)) returning id into v_id;
   insert into public.admin_audit_log(actor_id,action,details)
@@ -322,7 +332,7 @@ begin
     select m.id,coalesce(p.username,'Sistema'),m.empire_id,m.subject,m.body,m.created_at
     from public.user_messages m left join public.profiles p on p.id=m.sender_id
     where m.recipient_id=auth.uid()
-       or (m.recipient_id is null and m.empire_id is null)
+       or m.is_global
        or m.empire_id=(select empire_id from public.profiles where id=auth.uid())
     order by m.created_at desc limit 100;
 end;
