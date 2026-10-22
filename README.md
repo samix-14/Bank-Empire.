@@ -1,8 +1,10 @@
 # Bank Empire
 
-Bank Empire è un prototipo web di economia virtuale multivaluta collegato a Supabase. La versione 0.8 aggiunge il cambio valuta atomico con tassi configurabili nel database, mantenendo un solo account principale per utente.
+Bank Empire è un prototipo web di economia virtuale multivaluta collegato a Supabase. La versione 0.9 introduce ruoli persistenti lato database e dashboard privilegiate. La 0.8 resta disponibile nel branch 0.8.
 
 ## Pagine
+
+- **Gestione ruolo**: visibile solo ai ruoli privilegiati; include strumenti per l’Admin Supremo, il Banchiere Supremo e l’Imperatore.
 
 - **Conti**: crea e sblocca fino a quattro conti, visualizza i saldi per valuta e trasferisci fondi a un altro conto.
 - **Imperi**: mostra il patrimonio aggregato dei cittadini e il fondo statale per valuta, il numero di membri WhatsApp registrato e l'assicurazione attualmente assegnata all'impero.
@@ -60,3 +62,30 @@ Apri `index.html` con un browser moderno o pubblica il repository su un host sta
 - `migrations/20261014_bank_empire_v08_currency_exchange.sql`: migrazione del cambio valuta 0.8. Le migrazioni iniziali e quelle precedenti sono state applicate direttamente al progetto Supabase e non sono ancora tutte versionate in questo repository, quindi le migrazioni presenti non ricreano da sole un database vuoto da zero.
 - `README.md`: documentazione.
 - `CHANGELOG.md`: cronologia delle versioni.
+
+## Versione 0.9: ruoli e amministrazione beta
+
+Ruoli supportati: citizen, imperatore, banchiere_supremo, admin_supremo, comandante_militare, ministro_economia e assicuratore.
+
+- Il login accetta email oppure username. Gli account gestiti dall’Admin Supremo usano un alias interno username@accounts.bank-empire.invalid, mentre la password viene verificata da Supabase Auth.
+- Il ruolo è conservato in public.profiles.role; non viene letto dai metadati controllati dal browser.
+- L’Admin Supremo può creare account, cambiare ruoli, applicare/rimuovere ban temporanei, inviare messaggi individuali o globali e consultare transazioni e registro delle azioni privilegiate.
+- Il Banchiere Supremo può aggiungere o rimuovere denaro dai conti iniziali degli utenti. Ogni operazione richiede una causale e viene registrata nel registro amministrativo.
+- L’Imperatore può modificare il nome e il leader del proprio impero, scegliere il piano assicurativo, salvare regole fiscali e inviare messaggi ai membri dell’impero.
+- Le aliquote fiscali vengono salvate ma non vengono ancora applicate automaticamente alle transazioni.
+- Comandante Militare, Ministro dell’Economia e Assicuratore sono ruoli assegnabili, ma le loro dashboard operative sono ancora segnaposto.
+
+### Attivazione richiesta su Supabase
+
+La migrazione non viene applicata automaticamente al database: prima di testare la 0.9, applica supabase/migrations/20261022_bank_empire_v09_roles.sql nel SQL Editor di Supabase.
+
+1. Dopo la migrazione, promuovi manualmente un account esistente a primo Admin Supremo dal SQL Editor, sostituendo il nome utente: UPDATE public.profiles SET role = 'admin_supremo' WHERE username = 'TUO_USERNAME';
+2. Distribuisci le Edge Functions admin-create-account e bootstrap-beta-accounts con Supabase CLI o Dashboard. Non inserire mai la service-role key nel browser o nel repository.
+3. Per la funzione di bootstrap beta, configura un segreto BETA_BOOTSTRAP_SECRET di almeno 32 caratteri come secret server-side. Invia alla funzione esattamente tre account con username, password, ruolo (imperatore, banchiere_supremo, admin_supremo) e impero (auroria, nova o vesper). Dopo la creazione, disabilita/elimina bootstrap-beta-accounts e rimuovi il segreto.
+4. Le credenziali beta condivise sono solo per test: chiunque le conosca può usare l’account e i suoi privilegi. Non riutilizzare password personali e non lasciare un account Admin Supremo condiviso su un’istanza pubblica.
+
+Le Edge Functions devono essere distribuite prima che la creazione account funzioni. La pagina Gestione ruolo richiede la migrazione 0.9; fino ad allora i normali account 0.8 restano cittadini.
+
+### Limiti e verifiche
+
+Il codice è stato aggiornato nel branch GitHub 0.9, ma non è ancora stato eseguito end-to-end in un browser. La migrazione e le Edge Functions non sono state applicate/distribuite sul progetto Supabase di produzione. Le sospensioni sono sincronizzate con Supabase Auth; una sessione JWT già emessa può restare valida fino alla sua scadenza. Le funzioni finanziarie privilegiate sono server-side e controllano il ruolo, ma la versione 0.9 non sostituisce un audit di sicurezza completo.
