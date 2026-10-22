@@ -1,4 +1,4 @@
-/* Bank Empire 0.8: conti separati, imperi e cambio valuta. */
+/* Bank Empire 0.9: ruoli persistenti e dashboard privilegiate. */
 (function () {
   "use strict";
   var SUPABASE_URL = "https://iprquijkhvugvzfjvibe.supabase.co";
