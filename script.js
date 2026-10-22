@@ -10,7 +10,8 @@
     accounts: { title: "Conti", description: "Gestisci fino a quattro conti separati. Ogni conto ha una password propria e saldi indipendenti per valuta." },
     empires: { title: "Imperi", description: "Patrimonio dei cittadini, fondi statali e assicurazioni dimostrative configurate per ciascun impero." },
     ledger: { title: "Libro mastro", description: "Movimenti del conto aperto, inclusi trasferimenti e cambi valuta." },
-    exchange: { title: "Cambio valuta", description: "Converti fondi tra valute usando i tassi configurati nel database. I tassi iniziali sono segnaposto dimostrativi." }
+    exchange: { title: "Cambio valuta", description: "Converti fondi tra valute usando i tassi configurati nel database. I tassi iniziali sono segnaposto dimostrativi." },
+    role: { title: "Gestione ruolo", description: "Strumenti disponibili in base ai privilegi assegnati dal database." }
   };
   var content = document.getElementById("page-content");
   var authPanel = document.getElementById("auth-panel");
@@ -38,7 +39,7 @@
   function friendlyError(error) {
     var message = error && error.message ? error.message : "Operazione non riuscita.";
     if (/username|profiles_username_lower_unique|duplicate key/i.test(message)) return "Nome utente o nome conto già utilizzato. Scegline un altro.";
-    if (/invalid login credentials/i.test(message)) return "Email o password non corretti.";
+    if (/invalid login credentials/i.test(message)) return "Username/email o password non corretti.";
     if (/password should be at least/i.test(message)) return "La password deve contenere almeno 8 caratteri.";
     if (/user already registered/i.test(message)) return "Esiste già un account con questa email. Accedi.";
     return message;
@@ -62,7 +63,7 @@
       '<div class="actions"><button type="button" id="show-login" ' + (!isSignup ? 'disabled' : '') + '>Accedi</button><button type="button" id="show-signup" ' + (isSignup ? 'disabled' : '') + '>Crea account</button></div>' +
       '<form id="auth-form">' +
       (isSignup ? '<div class="field"><label for="username">Nome utente (3–24 lettere, numeri o _)</label><input id="username" name="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]{3,24}" autocomplete="username" required></div>' : '') +
-      '<div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div>' +
+      '<div class="field"><label for="email">' + (isSignup ? "Email" : "Username oppure email") + '</label><input id="email" name="email" type="' + (isSignup ? "email" : "text") + '" autocomplete="' + (isSignup ? "email" : "username") + '" placeholder="' + (isSignup ? "nome@esempio.it" : "test1 oppure nome@esempio.it") + '" required></div>' +
       '<div class="field"><label for="password">Password account principale (almeno 8 caratteri)</label><input id="password" name="password" type="password" minlength="8" autocomplete="' + (isSignup ? 'new-password' : 'current-password') + '" required></div>' +
       (isSignup ? '<div class="field"><label for="initial-account-name">Nome del conto iniziale</label><input id="initial-account-name" name="initial_account_name" minlength="2" maxlength="32" placeholder="Es. Conto principale" required></div>' : '') +
       (isSignup ? '<div class="field"><label for="empire">Impero principale</label><select id="empire" name="empire"><option value="auroria">Impero di Auroria</option><option value="nova">Repubblica di Nova</option><option value="vesper">Dominio di Vesper</option></select></div>' : '') +
@@ -77,7 +78,8 @@
   }
 
   async function submitAuth(form, isSignup) {
-    var email = form.elements.email.value.trim();
+    var identifier = form.elements.email.value.trim();
+    var email = isSignup || identifier.includes("@") ? identifier : identifier.toLowerCase() + "@accounts.bank-empire.invalid";
     var password = form.elements.password.value;
     var button = form.querySelector('button[type="submit"]');
     button.disabled = true;
@@ -112,7 +114,7 @@
   }
 
   async function loadProfile() {
-    var result = await supabase.from("profiles").select("id, username, empire_id").eq("id", currentUser.id).single();
+    var result = await supabase.from("profiles").select("id, username, empire_id, role, banned_until, ban_reason").eq("id", currentUser.id).single();
     if (result.error) throw result.error;
     currentProfile = result.data;
   }
@@ -129,8 +131,17 @@
     setNotice("<strong>Connessione attiva:</strong> dati economici e trasferimenti sono gestiti da Supabase.");
     try {
       if (!currentProfile) await loadProfile();
-      userLabel.textContent = currentProfile.username;
+      if (currentProfile.banned_until && new Date(currentProfile.banned_until) > new Date()) {
+        clearAccountSession();
+        await supabase.auth.signOut();
+        renderAuth("login", "Account sospeso fino al " + new Date(currentProfile.banned_until).toLocaleString("it-IT") + (currentProfile.ban_reason ? ". Motivo: " + currentProfile.ban_reason : "") + ".");
+        return;
+      }
+      userLabel.textContent = currentProfile.username + " · " + roleLabel(currentProfile.role);
+      var roleNav = document.getElementById("role-nav");
+      if (roleNav) roleNav.hidden = !["imperatore","banchiere_supremo","admin_supremo","comandante_militare","ministro_economia","assicuratore"].includes(currentProfile.role);
       var page = location.hash.slice(1);
+      if (page === "role" && (!roleNav || roleNav.hidden)) page = "accounts";
       if (!pageTitles[page]) page = "accounts";
       document.querySelectorAll("nav a[data-page]").forEach(function (link) {
         var active = link.dataset.page === page;
@@ -138,6 +149,7 @@
         if (active) link.setAttribute("aria-current", "page"); else link.removeAttribute("aria-current");
       });
       if (page === "accounts") await renderAccounts();
+      else if (page === "role") await renderRoleDashboard();
       else if (page === "empires") await renderEmpires();
       else if (page === "exchange") await renderExchange();
       else await renderLedger();
@@ -310,6 +322,94 @@
     }
   }
 
+
+
+  function roleLabel(role) {
+    return ({
+      citizen: "Cittadino", imperatore: "Imperatore", banchiere_supremo: "Banchiere Supremo",
+      admin_supremo: "Admin Supremo", comandante_militare: "Comandante Militare",
+      ministro_economia: "Ministro dell’Economia", assicuratore: "Assicuratore"
+    })[role] || "Cittadino";
+  }
+
+  async function renderRoleDashboard() {
+    var role = currentProfile.role || "citizen";
+    var messagesResult = await supabase.rpc("be_get_my_messages");
+    if (messagesResult.error) throw messagesResult.error;
+    var messages = messagesResult.data || [];
+    var html = pageHeader("role") + '<section class="panel"><h2>' + esc(roleLabel(role)) + '</h2><p class="muted">I privilegi sono verificati dal database. La schermata non può assegnare privilegi a se stessa.</p></section>';
+    if (role === "admin_supremo") {
+      var results = await Promise.all([
+        supabase.rpc("be_admin_list_users"),
+        supabase.rpc("be_admin_list_transactions")
+      ]);
+      results.forEach(function (r) { if (r.error) throw r.error; });
+      var users = results[0].data || [];
+      var transactions = results[1].data || [];
+      var roleOptions = [
+        ["citizen","Cittadino"],["imperatore","Imperatore"],["banchiere_supremo","Banchiere Supremo"],
+        ["admin_supremo","Admin Supremo"],["comandante_militare","Comandante Militare"],
+        ["ministro_economia","Ministro dell’Economia"],["assicuratore","Assicuratore"]
+      ];
+      html += '<section class="panel"><h2>Crea account</h2><p class="muted">Account con username e password, ruolo salvato sul server. La password non viene mostrata dopo la creazione.</p>' +
+        '<form id="managed-account-form"><div class="form-grid">' +
+        '<div class="field"><label>Username</label><input name="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]{3,24}" required></div>' +
+        '<div class="field"><label>Password (10-72 caratteri)</label><input name="password" type="password" minlength="10" maxlength="72" required></div>' +
+        '<div class="field"><label>Ruolo iniziale</label><select name="role">' + roleOptions.map(function(o){return '<option value="'+o[0]+'">'+o[1]+'</option>';}).join("") + '</select></div>' +
+        '<div class="field"><label>Impero</label><select name="empire_id"><option value="auroria">Auroria</option><option value="nova">Nova</option><option value="vesper">Vesper</option></select></div>' +
+        '</div><div class="actions"><button type="submit">Crea account</button></div></form></section>';
+      html += '<section class="panel"><h2>Account (' + users.length + ')</h2><div class="table-wrap"><table><thead><tr><th>Username</th><th>Impero</th><th>Ruolo</th><th>Ban (ore, 0 = rimuovi)</th><th>Azioni</th></tr></thead><tbody>' +
+        users.map(function(u){ return '<tr><td>'+esc(u.username)+'</td><td>'+esc(u.empire_id)+'</td><td><select data-role-user="'+esc(u.user_id)+'">'+roleOptions.map(function(o){return '<option value="'+o[0]+'" '+(o[0]===u.role?'selected':'')+'>'+o[1]+'</option>';}).join("")+'</select></td><td><input data-ban-hours="'+esc(u.user_id)+'" type="number" min="0" max="87600" value="'+(u.banned_until && new Date(u.banned_until)>new Date()?Math.max(1,Math.ceil((new Date(u.banned_until)-Date.now())/3600000)):0)+'"></td><td><div class="actions"><button type="button" data-save-role="'+esc(u.user_id)+'">Salva ruolo</button><button type="button" class="secondary" data-save-ban="'+esc(u.user_id)+'">Applica ban</button></div>'+(u.banned_until && new Date(u.banned_until)>new Date()?'<small>Sospeso: '+esc(new Date(u.banned_until).toLocaleString("it-IT"))+'</small>':'')+'</td></tr>'; }).join("") +
+        '</tbody></table></div></section>';
+      html += '<section class="panel"><h2>Messaggio globale</h2><form id="broadcast-form"><div class="field"><label>Oggetto</label><input name="subject" maxlength="100" required></div><div class="field"><label>Messaggio</label><textarea name="body" maxlength="2000" rows="4" required></textarea></div><div class="actions"><button type="submit">Invia a tutti</button></div></form></section>';
+      html += '<section class="panel"><h2>Transazioni recenti ('+transactions.length+')</h2><div class="table-wrap"><table><thead><tr><th>Data</th><th>Da</th><th>A</th><th>Importo</th><th>Causale</th></tr></thead><tbody>' +
+        transactions.map(function(t){return '<tr><td>'+esc(new Date(t.created_at).toLocaleString("it-IT"))+'</td><td>'+esc(t.from_username)+' / '+esc(t.from_account)+'</td><td>'+esc(t.to_username)+' / '+esc(t.to_account)+'</td><td>'+money(t.amount,t.currency)+'</td><td>'+esc(t.description)+'</td></tr>';}).join("") +
+        '</tbody></table></div></section>';
+    } else if (role === "banchiere_supremo") {
+      var currenciesResult = await supabase.from("currencies").select("code,name").eq("enabled",true).order("code");
+      if (currenciesResult.error) throw currenciesResult.error;
+      html += '<section class="panel"><h2>Regola il saldo di un cittadino</h2><p class="muted">Importo positivo = crea denaro. Negativo = rimuove denaro. Non è possibile portare il saldo sotto zero.</p><form id="banker-adjust-form"><div class="form-grid"><div class="field"><label>Username destinatario</label><input name="username" required></div><div class="field"><label>Valuta</label><select name="currency">'+(currenciesResult.data||[]).map(function(c){return '<option value="'+esc(c.code)+'">'+esc(c.name)+' ('+esc(c.code)+')</option>';}).join("")+'</select></div><div class="field"><label>Importo (+/-)</label><input name="amount" type="number" step="0.01" required></div><div class="field"><label>Causale</label><input name="reason" minlength="3" maxlength="200" required></div></div><div class="actions"><button type="submit">Conferma operazione</button></div></form></section>';
+    } else if (role === "imperatore") {
+      var empireResult = await supabase.from("empires").select("id,name,leader,selected_insurance_plan_id").eq("id",currentProfile.empire_id).single();
+      var plansResult = await supabase.from("insurance_plans").select("id,name,active").eq("active",true).order("id");
+      var taxesResult = await supabase.rpc("be_get_my_tax_rules");
+      [empireResult,plansResult,taxesResult].forEach(function(r){if(r.error)throw r.error;});
+      var empire = empireResult.data;
+      html += '<section class="panel"><h2>Configura il tuo impero</h2><form id="empire-config-form"><div class="form-grid"><div class="field"><label>Nome impero</label><input name="name" minlength="3" maxlength="60" value="'+esc(empire.name)+'" required></div><div class="field"><label>Leader</label><input name="leader" minlength="2" maxlength="60" value="'+esc(empire.leader||currentProfile.username)+'" required></div><div class="field"><label>Assicurazione cittadini</label><select name="insurance_plan_id"><option value="">Nessuna</option>'+(plansResult.data||[]).map(function(p){return '<option value="'+p.id+'" '+(Number(p.id)===Number(empire.selected_insurance_plan_id)?'selected':'')+'>'+esc(p.name)+'</option>';}).join("")+'</select></div></div><div class="actions"><button type="submit">Salva impero</button></div></form></section>';
+      html += '<section class="panel"><h2>Regole fiscali</h2><p class="muted">Le aliquote vengono salvate. L’applicazione automatica alle transazioni è una fase successiva.</p><form id="tax-form"><div class="form-grid"><div class="field"><label>Codice attività</label><input name="activity_code" pattern="[a-z0-9_]{2,40}" placeholder="es. trasferimenti" required></div><div class="field"><label>Nome attività</label><input name="label" minlength="2" maxlength="80" required></div><div class="field"><label>Aliquota (%)</label><input name="rate_percent" type="number" min="0" max="100" step="0.01" required></div><div class="field"><label>Stato</label><select name="enabled"><option value="true">Attiva</option><option value="false">Disattivata</option></select></div></div><div class="actions"><button type="submit">Salva tassa</button></div></form><div class="table-wrap"><table><thead><tr><th>Attività</th><th>Aliquota</th><th>Stato</th></tr></thead><tbody>'+(taxesResult.data||[]).map(function(t){return '<tr><td>'+esc(t.label)+' ('+esc(t.activity_code)+')</td><td>'+Number(t.rate_percent).toLocaleString("it-IT")+'%</td><td>'+(t.enabled?'Attiva':'Disattivata')+'</td></tr>';}).join("")+'</tbody></table></div></section>';
+      html += '<section class="panel"><h2>Messaggio ai membri dell’impero</h2><form id="empire-broadcast-form"><div class="field"><label>Oggetto</label><input name="subject" maxlength="100" required></div><div class="field"><label>Messaggio</label><textarea name="body" maxlength="2000" rows="4" required></textarea></div><div class="actions"><button type="submit">Invia ai cittadini</button></div></form></section>';
+    } else if (role === "comandante_militare" || role === "ministro_economia" || role === "assicuratore") {
+      html += '<section class="panel"><h2>Ruolo in preparazione</h2><p>Il ruolo è assegnabile dall’Admin Supremo, ma le sue funzioni operative saranno aggiunte in una versione successiva.</p></section>';
+    }
+    html += '<section class="panel"><h2>Messaggi ricevuti</h2>' + (messages.length ? '<div class="message-list">' + messages.map(function(m){return '<article class="message-card"><strong>'+esc(m.subject)+'</strong><p class="muted">Da '+esc(m.sender_username)+' · '+esc(new Date(m.created_at).toLocaleString("it-IT"))+'</p><p>'+esc(m.body)+'</p></article>';}).join("") + '</div>' : '<div class="empty">Nessun messaggio.</div>') + '</section>';
+    content.innerHTML = html;
+
+    var createForm = document.getElementById("managed-account-form");
+    if (createForm) createForm.addEventListener("submit", async function(event) {
+      event.preventDefault(); var form=event.currentTarget; var button=form.querySelector('button[type="submit"]'); button.disabled=true;
+      try {
+        var response=await supabase.functions.invoke("admin-create-account",{body:{username:form.elements.username.value.trim(),password:form.elements.password.value,role:form.elements.role.value,empire_id:form.elements.empire_id.value}});
+        if(response.error) throw response.error; if(response.data && response.data.error) throw new Error(response.data.error);
+        showToast("Account creato: "+response.data.username+" ("+roleLabel(response.data.role)+")."); await renderRoleDashboard();
+      } catch(error) { showToast(friendlyError(error)); button.disabled=false; }
+    });
+    document.querySelectorAll("[data-save-role]").forEach(function(button){button.addEventListener("click",async function(){
+      try {var id=button.dataset.saveRole;var roleSelect=document.querySelector('[data-role-user="'+id+'"]');var r=await supabase.rpc("be_admin_set_role",{p_user_id:id,p_role:roleSelect.value});if(r.error)throw r.error;showToast("Ruolo aggiornato.");await renderRoleDashboard();}catch(e){showToast(friendlyError(e));}
+    });});
+    document.querySelectorAll("[data-save-ban]").forEach(function(button){button.addEventListener("click",async function(){
+      try {var id=button.dataset.saveBan;var hours=Number(document.querySelector('[data-ban-hours="'+id+'"]').value);var r=await supabase.rpc("be_admin_set_ban",{p_user_id:id,p_duration_hours:hours,p_reason:hours===0?"Ban rimosso":"Sospensione amministrativa"});if(r.error)throw r.error;showToast(hours===0?"Ban rimosso.":"Sospensione aggiornata.");await renderRoleDashboard();}catch(e){showToast(friendlyError(e));}
+    });});
+    var broadcast=document.getElementById("broadcast-form");
+    if(broadcast) broadcast.addEventListener("submit",async function(event){event.preventDefault();var form=event.currentTarget;try{var r=await supabase.rpc("be_admin_send_broadcast",{p_subject:form.elements.subject.value.trim(),p_body:form.elements.body.value.trim()});if(r.error)throw r.error;showToast("Messaggio globale inviato.");await renderRoleDashboard();}catch(e){showToast(friendlyError(e));}});
+    var banker=document.getElementById("banker-adjust-form");
+    if(banker) banker.addEventListener("submit",async function(event){event.preventDefault();var form=event.currentTarget;var button=form.querySelector('button[type="submit"]');button.disabled=true;try{var r=await supabase.rpc("be_banker_adjust_balance",{p_username:form.elements.username.value.trim(),p_currency:form.elements.currency.value,p_amount:Number(form.elements.amount.value),p_reason:form.elements.reason.value.trim()});if(r.error)throw r.error;showToast("Operazione registrata nel registro amministrativo.");form.reset();}catch(e){showToast(friendlyError(e));}finally{button.disabled=false;}});
+    var empireForm=document.getElementById("empire-config-form");
+    if(empireForm) empireForm.addEventListener("submit",async function(event){event.preventDefault();try{var raw=empireForm.elements.insurance_plan_id.value;var r=await supabase.rpc("be_emperor_update_empire",{p_name:empireForm.elements.name.value.trim(),p_leader:empireForm.elements.leader.value.trim(),p_insurance_plan_id:raw?Number(raw):null});if(r.error)throw r.error;showToast("Impero aggiornato.");await renderRoleDashboard();}catch(e){showToast(friendlyError(e));}});
+    var taxForm=document.getElementById("tax-form");
+    if(taxForm) taxForm.addEventListener("submit",async function(event){event.preventDefault();try{var r=await supabase.rpc("be_emperor_save_tax",{p_activity_code:taxForm.elements.activity_code.value.trim(),p_label:taxForm.elements.label.value.trim(),p_rate_percent:Number(taxForm.elements.rate_percent.value),p_enabled:taxForm.elements.enabled.value==="true"});if(r.error)throw r.error;showToast("Regola fiscale salvata.");await renderRoleDashboard();}catch(e){showToast(friendlyError(e));}});
+    var empireBroadcast=document.getElementById("empire-broadcast-form");
+    if(empireBroadcast) empireBroadcast.addEventListener("submit",async function(event){event.preventDefault();try{var r=await supabase.rpc("be_emperor_broadcast",{p_subject:empireBroadcast.elements.subject.value.trim(),p_body:empireBroadcast.elements.body.value.trim()});if(r.error)throw r.error;showToast("Messaggio inviato ai membri dell’impero.");await renderRoleDashboard();}catch(e){showToast(friendlyError(e));}});
+  }
 
   async function renderExchange() {
     var token = activeToken();
