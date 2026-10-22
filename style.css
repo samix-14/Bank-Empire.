@@ -102,3 +102,12 @@ footer { padding: 18px 20px; text-align: center; border-top: 1px solid var(--bor
 .exchange-result strong { font-size: clamp(16px, 3vw, 24px); overflow-wrap: anywhere; }
 .exchange-arrow { font-size: 20px !important; color: var(--accent) !important; }
 @media (max-width: 520px) { .exchange-result { grid-template-columns: 1fr; } .exchange-arrow { transform: rotate(90deg); width: max-content; } }
+
+
+/* Bank Empire 0.9: privileged dashboards */
+textarea { width: 100%; min-height: 100px; padding: 10px 11px; color: #f2f5fa; border: 1px solid #46536a; border-radius: 7px; background: #101827; font: inherit; resize: vertical; }
+.message-list { display: grid; gap: 12px; }
+.message-card { padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: #141f31; }
+.message-card p { white-space: pre-wrap; overflow-wrap: anywhere; }
+#role-nav { border: 1px solid #8b713e; color: var(--accent); }
+#role-nav[hidden] { display: none; }
