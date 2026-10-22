@@ -6,6 +6,8 @@ alter table public.profiles
   add column if not exists banned_until timestamptz,
   add column if not exists ban_reason text;
 
+create unique index if not exists profiles_username_lower_unique on public.profiles (lower(username));
+
 alter table public.profiles drop constraint if exists profiles_role_check;
 alter table public.profiles add constraint profiles_role_check
   check (role in ('citizen','imperatore','banchiere_supremo','admin_supremo','comandante_militare','ministro_economia','assicuratore'));
@@ -50,6 +52,7 @@ create table if not exists public.user_messages (
 
 alter table public.user_messages add column if not exists is_global boolean not null default false;
 alter table public.user_messages drop constraint if exists user_messages_check;
+alter table public.user_messages drop constraint if exists user_messages_delivery_check;
 alter table public.user_messages add constraint user_messages_delivery_check
   check (recipient_id is not null or empire_id is not null or is_global);
 
