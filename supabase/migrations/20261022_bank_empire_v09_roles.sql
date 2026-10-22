@@ -177,8 +177,8 @@ begin
   update public.account_balances set balance=balance+p_amount,updated_at=now() where account_id=v_account and currency=v_currency;
   insert into public.admin_audit_log(actor_id,action,target_user_id,details)
   values(v_actor,case when p_amount>0 then 'money_created' else 'money_removed' end,v_target,
-    jsonb_build_object('username',p_username,'currency',v_currency,'amount',p_amount,'reason',trim(p_reason),'account_id',v_account));
-  return (select id from public.admin_audit_log where actor_id=v_actor order by id desc limit 1);
+    jsonb_build_object('username',p_username,'currency',v_currency,'amount',p_amount,'reason',trim(p_reason),'account_id',v_account)) returning id into v_id;
+  return v_id;
 end;
 $$;
 
@@ -212,6 +212,23 @@ begin
   return v_id;
 end;
 $$;
+
+
+create or replace function public.be_emperor_broadcast(p_subject text, p_body text)
+returns bigint language plpgsql security definer set search_path=public
+as $
+declare v_empire text; v_id bigint;
+begin
+  if not public.be_has_role(array['imperatore','admin_supremo']) then raise exception 'Permesso negato.'; end if;
+  select empire_id into v_empire from public.profiles where id=auth.uid();
+  if v_empire is null then raise exception 'Impero non trovato.'; end if;
+  insert into public.user_messages(sender_id,empire_id,subject,body)
+  values(auth.uid(),v_empire,trim(p_subject),trim(p_body)) returning id into v_id;
+  insert into public.admin_audit_log(actor_id,action,details)
+  values(auth.uid(),'empire_message_sent',jsonb_build_object('empire_id',v_empire,'message_id',v_id,'subject',left(p_subject,100)));
+  return v_id;
+end;
+$;
 
 create or replace function public.be_get_my_messages()
 returns table(id bigint, sender_username text, empire_id text, subject text, body text, created_at timestamptz)
