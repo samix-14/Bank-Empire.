@@ -342,12 +342,16 @@
       var results = await Promise.all([
         supabase.rpc("be_admin_list_users"),
         supabase.rpc("be_admin_list_transactions"),
-        supabase.rpc("be_admin_list_audit")
+        supabase.rpc("be_admin_list_audit"),
+        supabase.rpc("be_admin_list_account_balances"),
+        supabase.rpc("be_admin_list_exchange_transactions")
       ]);
       results.forEach(function (r) { if (r.error) throw r.error; });
       var users = results[0].data || [];
       var transactions = results[1].data || [];
       var auditRows = results[2].data || [];
+      var accountBalances = results[3].data || [];
+      var exchangeTransactions = results[4].data || [];
       var roleOptions = [
         ["citizen","Cittadino"],["imperatore","Imperatore"],["banchiere_supremo","Banchiere Supremo"],
         ["admin_supremo","Admin Supremo"],["comandante_militare","Comandante Militare"],
@@ -363,10 +367,16 @@
       html += '<section class="panel"><h2>Account (' + users.length + ')</h2><div class="table-wrap"><table><thead><tr><th>Username</th><th>Impero</th><th>Ruolo</th><th>Ban (ore, 0 = rimuovi)</th><th>Azioni</th></tr></thead><tbody>' +
         users.map(function(u){ return '<tr><td>'+esc(u.username)+'</td><td>'+esc(u.empire_id)+'</td><td><select data-role-user="'+esc(u.user_id)+'">'+roleOptions.map(function(o){return '<option value="'+o[0]+'" '+(o[0]===u.role?'selected':'')+'>'+o[1]+'</option>';}).join("")+'</select></td><td><input data-ban-hours="'+esc(u.user_id)+'" type="number" min="0" max="87600" value="'+(u.banned_until && new Date(u.banned_until)>new Date()?Math.max(1,Math.ceil((new Date(u.banned_until)-Date.now())/3600000)):0)+'"></td><td><div class="actions"><button type="button" data-save-role="'+esc(u.user_id)+'">Salva ruolo</button><button type="button" class="secondary" data-save-ban="'+esc(u.user_id)+'">Applica ban</button></div>'+(u.banned_until && new Date(u.banned_until)>new Date()?'<small>Sospeso: '+esc(new Date(u.banned_until).toLocaleString("it-IT"))+'</small>':'')+'</td></tr>'; }).join("") +
         '</tbody></table></div></section>';
+      html += '<section class="panel"><h2>Conti e saldi ('+accountBalances.length+' righe)</h2><div class="table-wrap"><table><thead><tr><th>Utente</th><th>Ruolo</th><th>Impero</th><th>Conto</th><th>Valuta</th><th>Saldo</th></tr></thead><tbody>'+
+        accountBalances.map(function(b){return '<tr><td>'+esc(b.username)+'</td><td>'+esc(roleLabel(b.role))+'</td><td>'+esc(b.empire_id)+'</td><td>'+esc(b.account_name)+'</td><td>'+esc(b.currency)+'</td><td>'+money(b.balance,b.currency)+'</td></tr>';}).join("")+
+        '</tbody></table></div></section>';
       html += '<section class="panel"><h2>Messaggio globale</h2><form id="broadcast-form"><div class="field"><label>Oggetto</label><input name="subject" maxlength="100" required></div><div class="field"><label>Messaggio</label><textarea name="body" maxlength="2000" rows="4" required></textarea></div><div class="actions"><button type="submit">Invia a tutti</button></div></form></section>';
       html += '<section class="panel"><h2>Messaggio a un account</h2><form id="direct-message-form"><div class="field"><label>Destinatario</label><select name="user_id" required>'+users.filter(function(u){return u.user_id!==currentUser.id;}).map(function(u){return '<option value="'+esc(u.user_id)+'">'+esc(u.username)+' · '+esc(roleLabel(u.role))+'</option>';}).join("")+'</select></div><div class="field"><label>Oggetto</label><input name="subject" maxlength="100" required></div><div class="field"><label>Messaggio</label><textarea name="body" maxlength="2000" rows="4" required></textarea></div><div class="actions"><button type="submit">Invia messaggio</button></div></form></section>';
       html += '<section class="panel"><h2>Transazioni recenti ('+transactions.length+')</h2><div class="table-wrap"><table><thead><tr><th>Data</th><th>Da</th><th>A</th><th>Importo</th><th>Causale</th></tr></thead><tbody>' +
         transactions.map(function(t){return '<tr><td>'+esc(new Date(t.created_at).toLocaleString("it-IT"))+'</td><td>'+esc(t.from_username)+' / '+esc(t.from_account)+'</td><td>'+esc(t.to_username)+' / '+esc(t.to_account)+'</td><td>'+money(t.amount,t.currency)+'</td><td>'+esc(t.description)+'</td></tr>';}).join("") +
+        '</tbody></table></div></section>';
+      html += '<section class="panel"><h2>Cambi valuta recenti ('+exchangeTransactions.length+')</h2><div class="table-wrap"><table><thead><tr><th>Data</th><th>Utente / conto</th><th>Convertito</th><th>Ricevuto</th><th>Tasso</th><th>Causale</th></tr></thead><tbody>'+
+        exchangeTransactions.map(function(x){return '<tr><td>'+esc(new Date(x.created_at).toLocaleString("it-IT"))+'</td><td>'+esc(x.username)+' / '+esc(x.account_name)+'</td><td>'+money(x.from_amount,x.from_currency)+'</td><td>'+money(x.to_amount,x.to_currency)+'</td><td>1 '+esc(x.from_currency)+' = '+Number(x.exchange_rate).toLocaleString("it-IT")+' '+esc(x.to_currency)+'</td><td>'+esc(x.description)+'</td></tr>';}).join("")+
         '</tbody></table></div></section>';
       html += '<section class="panel"><h2>Registro delle azioni privilegiate ('+auditRows.length+')</h2><div class="table-wrap"><table><thead><tr><th>Data</th><th>Operatore</th><th>Azione</th><th>Destinatario</th><th>Dettagli</th></tr></thead><tbody>'+
         auditRows.map(function(a){return '<tr><td>'+esc(new Date(a.created_at).toLocaleString("it-IT"))+'</td><td>'+esc(a.actor_username||"Sistema")+'</td><td>'+esc(a.action)+'</td><td>'+esc(a.target_username||"—")+'</td><td><code>'+esc(JSON.stringify(a.details))+'</code></td></tr>';}).join("")+
