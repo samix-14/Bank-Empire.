@@ -69,7 +69,7 @@ Ruoli supportati: citizen, imperatore, banchiere_supremo, admin_supremo, comanda
 
 - Il login accetta email oppure username. Gli account gestiti dall’Admin Supremo usano un alias interno username@accounts.bank-empire.invalid, mentre la password viene verificata da Supabase Auth.
 - Il ruolo è conservato in public.profiles.role; non viene letto dai metadati controllati dal browser.
-- L’Admin Supremo può creare account, cambiare ruoli, applicare/rimuovere ban temporanei, inviare messaggi individuali o globali e consultare transazioni e registro delle azioni privilegiate.
+- L’Admin Supremo può creare account, cambiare ruoli, applicare/rimuovere ban temporanei, inviare messaggi individuali o globali e consultare utenti, saldi dei conti, trasferimenti, cambi valuta e registro delle azioni privilegiate.
 - Il Banchiere Supremo può aggiungere o rimuovere denaro dai conti iniziali degli utenti. Ogni operazione richiede una causale e viene registrata nel registro amministrativo.
 - L’Imperatore può modificare il nome e il leader del proprio impero, scegliere il piano assicurativo, salvare regole fiscali e inviare messaggi ai membri dell’impero.
 - Le aliquote fiscali vengono salvate ma non vengono ancora applicate automaticamente alle transazioni.
