@@ -10,6 +10,24 @@ alter table public.profiles drop constraint if exists profiles_role_check;
 alter table public.profiles add constraint profiles_role_check
   check (role in ('citizen','imperatore','banchiere_supremo','admin_supremo','comandante_militare','ministro_economia','assicuratore'));
 
+
+-- Prevent normal authenticated clients from changing their own role through the REST API.
+create or replace function public.be_protect_profile_role()
+returns trigger language plpgsql security definer set search_path=public
+as $
+begin
+  if new.role is distinct from old.role
+     and current_user not in ('postgres','service_role','supabase_admin') then
+    raise exception 'Il ruolo può essere modificato solo dall’amministrazione.';
+  end if;
+  return new;
+end;
+$;
+drop trigger if exists be_profiles_protect_role on public.profiles;
+create trigger be_profiles_protect_role
+before update of role on public.profiles
+for each row execute function public.be_protect_profile_role();
+
 create table if not exists public.admin_audit_log (
   id bigint generated always as identity primary key,
   actor_id uuid references auth.users(id) on delete set null,
