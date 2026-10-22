@@ -13,7 +13,7 @@ alter table public.profiles add constraint profiles_role_check
 
 -- Prevent normal authenticated clients from changing their own role through the REST API.
 create or replace function public.be_protect_profile_role()
-returns trigger language plpgsql security definer set search_path=public
+returns trigger language plpgsql set search_path=public
 as $
 begin
   if new.role is distinct from old.role
