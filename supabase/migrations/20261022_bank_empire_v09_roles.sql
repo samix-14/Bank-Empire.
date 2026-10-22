@@ -14,7 +14,7 @@ alter table public.profiles add constraint profiles_role_check
 -- Prevent normal authenticated clients from changing their own role through the REST API.
 create or replace function public.be_protect_profile_role()
 returns trigger language plpgsql set search_path=public
-as $
+as $$
 begin
   if new.role is distinct from old.role
      and current_user not in ('postgres','service_role','supabase_admin') then
@@ -22,7 +22,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 drop trigger if exists be_profiles_protect_role on public.profiles;
 create trigger be_profiles_protect_role
 before update of role on public.profiles
@@ -56,14 +56,14 @@ alter table public.user_messages add constraint user_messages_delivery_check
 -- Sync bans to Supabase Auth so suspended users cannot sign in or refresh normally.
 create or replace function public.be_sync_auth_ban()
 returns trigger language plpgsql security definer set search_path=public,auth
-as $
+as $$
 begin
   update auth.users
   set banned_until = new.banned_until
   where id = new.id;
   return new;
 end;
-$;
+$$;
 drop trigger if exists be_profiles_sync_auth_ban on public.profiles;
 create trigger be_profiles_sync_auth_ban
 after update of banned_until on public.profiles
@@ -127,7 +127,7 @@ $$;
 create or replace function public.be_admin_list_audit()
 returns table(id bigint, created_at timestamptz, actor_username text, action text, target_username text, details jsonb)
 language plpgsql stable security definer set search_path=public
-as $
+as $$
 begin
   if not public.be_has_role(array['admin_supremo']) then raise exception 'Permesso negato.'; end if;
   return query
@@ -137,13 +137,13 @@ begin
     left join public.profiles t on t.id=l.target_user_id
     order by l.created_at desc limit 500;
 end;
-$;
+$$;
 
 
 create or replace function public.be_admin_list_account_balances()
 returns table(username text, role text, empire_id text, account_name text, currency text, balance numeric, account_created_at timestamptz)
 language plpgsql stable security definer set search_path=public
-as $
+as $$
 begin
   if not public.be_has_role(array['admin_supremo']) then raise exception 'Permesso negato.'; end if;
   return query
@@ -153,12 +153,12 @@ begin
     join public.account_balances b on b.account_id=a.id
     order by p.username,a.created_at,b.currency limit 2000;
 end;
-$;
+$$;
 
 create or replace function public.be_admin_list_exchange_transactions()
 returns table(transaction_id bigint, created_at timestamptz, username text, account_name text, from_currency text, from_amount numeric, to_currency text, to_amount numeric, exchange_rate numeric, description text)
 language plpgsql stable security definer set search_path=public
-as $
+as $$
 begin
   if not public.be_has_role(array['admin_supremo']) then raise exception 'Permesso negato.'; end if;
   return query
@@ -168,7 +168,7 @@ begin
     join public.profiles p on p.id=a.owner_id
     order by x.created_at desc limit 500;
 end;
-$;
+$$;
 
 create or replace function public.be_admin_list_transactions()
 returns table(transaction_id bigint, created_at timestamptz, from_account text, from_username text, to_account text, to_username text, currency text, amount numeric, description text)
@@ -307,7 +307,7 @@ $$;
 
 create or replace function public.be_emperor_broadcast(p_subject text, p_body text)
 returns bigint language plpgsql security definer set search_path=public
-as $
+as $$
 declare v_empire text; v_id bigint;
 begin
   if not public.be_has_role(array['imperatore','admin_supremo']) then raise exception 'Permesso negato.'; end if;
@@ -320,7 +320,7 @@ begin
   values(auth.uid(),'empire_message_sent',jsonb_build_object('empire_id',v_empire,'message_id',v_id,'subject',left(p_subject,100)));
   return v_id;
 end;
-$;
+$$;
 
 create or replace function public.be_get_my_messages()
 returns table(id bigint, sender_username text, empire_id text, subject text, body text, created_at timestamptz)
