@@ -28,6 +28,23 @@ create table if not exists public.user_messages (
   created_at timestamptz not null default now(),
   check (recipient_id is not null or empire_id is not null)
 );
+
+-- Sync bans to Supabase Auth so suspended users cannot sign in or refresh normally.
+create or replace function public.be_sync_auth_ban()
+returns trigger language plpgsql security definer set search_path=public,auth
+as $
+begin
+  update auth.users
+  set banned_until = new.banned_until
+  where id = new.id;
+  return new;
+end;
+$;
+drop trigger if exists be_profiles_sync_auth_ban on public.profiles;
+create trigger be_profiles_sync_auth_ban
+after update of banned_until on public.profiles
+for each row execute function public.be_sync_auth_ban();
+
 create table if not exists public.empire_tax_rules (
   id bigint generated always as identity primary key,
   empire_id text not null references public.empires(id) on delete cascade,
@@ -81,6 +98,22 @@ begin
   from public.profiles p order by p.created_at desc limit 500;
 end;
 $$;
+
+
+create or replace function public.be_admin_list_audit()
+returns table(id bigint, created_at timestamptz, actor_username text, action text, target_username text, details jsonb)
+language plpgsql stable security definer set search_path=public
+as $
+begin
+  if not public.be_has_role(array['admin_supremo']) then raise exception 'Permesso negato.'; end if;
+  return query
+    select l.id,l.created_at,coalesce(a.username,'Sistema'),l.action,t.username,l.details
+    from public.admin_audit_log l
+    left join public.profiles a on a.id=l.actor_id
+    left join public.profiles t on t.id=l.target_user_id
+    order by l.created_at desc limit 500;
+end;
+$;
 
 create or replace function public.be_admin_list_transactions()
 returns table(transaction_id bigint, created_at timestamptz, from_account text, from_username text, to_account text, to_username text, currency text, amount numeric, description text)
