@@ -404,7 +404,7 @@
     if (createForm) createForm.addEventListener("submit", async function(event) {
       event.preventDefault(); var form=event.currentTarget; var button=form.querySelector('button[type="submit"]'); button.disabled=true;
       try {
-        var response=await supabase.functions.invoke("admin-create-account",{body:{username:form.elements.username.value.trim(),password:form.elements.password.value,role:form.elements.role.value,empire_id:form.elements.empire_id.value}});
+        var response=await supabase.functions.invoke("swift-api",{body:{username:form.elements.username.value.trim(),password:form.elements.password.value,role:form.elements.role.value,empire_id:form.elements.empire_id.value}});
         if(response.error) throw response.error; if(response.data && response.data.error) throw new Error(response.data.error);
         showToast("Account creato: "+response.data.username+" ("+roleLabel(response.data.role)+")."); await renderRoleDashboard();
       } catch(error) { showToast(friendlyError(error)); button.disabled=false; }
