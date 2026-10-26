@@ -63,7 +63,7 @@
       '<div class="actions"><button type="button" id="show-login" ' + (!isSignup ? 'disabled' : '') + '>Accedi</button><button type="button" id="show-signup" ' + (isSignup ? 'disabled' : '') + '>Crea account</button></div>' +
       '<form id="auth-form">' +
       (isSignup ? '<div class="field"><label for="username">Nome utente (3–24 lettere, numeri o _)</label><input id="username" name="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]{3,24}" autocomplete="username" required></div>' : '') +
-      '<div class="field"><label for="email">' + (isSignup ? "Email" : "Username oppure email") + '</label><input id="email" name="email" type="' + (isSignup ? "email" : "text") + '" autocomplete="' + (isSignup ? "email" : "username") + '" placeholder="' + (isSignup ? "nome@esempio.it" : "test1 oppure nome@esempio.it") + '" required></div>' +
+      (isSignup ? '' : '<div class="field"><label for="email">Username oppure email</label><input id="email" name="email" type="text" autocomplete="username" placeholder="test1 oppure nome@esempio.it" required></div>') +
       '<div class="field"><label for="password">Password account principale (almeno 8 caratteri)</label><input id="password" name="password" type="password" minlength="8" autocomplete="' + (isSignup ? 'new-password' : 'current-password') + '" required></div>' +
       (isSignup ? '<div class="field"><label for="initial-account-name">Nome del conto iniziale</label><input id="initial-account-name" name="initial_account_name" minlength="2" maxlength="32" placeholder="Es. Conto principale" required></div>' : '') +
       (isSignup ? '<div class="field"><label for="empire">Impero principale</label><select id="empire" name="empire"><option value="auroria">Impero di Auroria</option><option value="nova">Repubblica di Nova</option><option value="vesper">Dominio di Vesper</option></select></div>' : '') +
@@ -92,8 +92,8 @@
   }
 
   async function submitAuth(form, isSignup) {
-    var identifier = form.elements.email.value.trim();
-    var email = isSignup || identifier.includes("@") ? identifier : identifier.toLowerCase() + "@accounts.bank-empire.invalid";
+    var identifier = isSignup ? form.elements.username.value.trim() : form.elements.email.value.trim();
+    var email = isSignup ? identifier.toLowerCase() + "@accounts.bank-empire.invalid" : (identifier.includes("@") ? identifier : identifier.toLowerCase() + "@accounts.bank-empire.invalid");
     var password = form.elements.password.value;
     var button = form.querySelector('button[type="submit"]');
     button.disabled = true;
@@ -118,7 +118,7 @@
       }
       if (result.error) throw result.error;
       if (isSignup && !result.data.session) {
-        renderAuth("login", "Account creato. Conferma l’email se richiesto, poi accedi per impostare la password del conto iniziale.");
+        renderAuth("login", "Account creato. Ora accedi con il nome utente e la password per impostare il conto iniziale.");
         return;
       }
       currentUser = result.data.user;
