@@ -77,6 +77,20 @@
     });
   }
 
+  function getRegistrationBrowserId() {
+    var key = "be_registration_browser_id";
+    var existing = localStorage.getItem(key);
+    if (existing && /^[0-9a-f-]{36}$/i.test(existing)) return existing;
+    var id = (window.crypto && typeof window.crypto.randomUUID === "function")
+      ? window.crypto.randomUUID()
+      : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+          var r = Math.random() * 16 | 0;
+          return (c === "x" ? r : (r & 3 | 8)).toString(16);
+        });
+    localStorage.setItem(key, id);
+    return id;
+  }
+
   async function submitAuth(form, isSignup) {
     var identifier = form.elements.email.value.trim();
     var email = isSignup || identifier.includes("@") ? identifier : identifier.toLowerCase() + "@accounts.bank-empire.invalid";
@@ -86,6 +100,10 @@
     try {
       var result;
       if (isSignup) {
+        var guard = await supabase.rpc("be_check_registration_guard", {
+          p_browser_id: getRegistrationBrowserId()
+        });
+        if (guard.error) throw guard.error;
         result = await supabase.auth.signUp({
           email: email,
           password: password,
