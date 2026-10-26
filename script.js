@@ -100,8 +100,8 @@
     try {
       var result;
       if (isSignup) {
-        var guard = await supabase.rpc("be_check_registration_guard", {
-          p_browser_id: getRegistrationBrowserId()
+        var guard = await supabase.functions.invoke("registration-guard", {
+          body: { browser_id: getRegistrationBrowserId() }
         });
         if (guard.error) throw guard.error;
         result = await supabase.auth.signUp({
