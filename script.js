@@ -75,7 +75,9 @@
       '<div class="field"><label for="password">Password account principale (almeno 8 caratteri)</label><input id="password" name="password" type="password" minlength="8" autocomplete="' + (isSignup ? 'new-password' : 'current-password') + '" required></div>' +
       (isSignup ? '<div class="field"><label for="initial-account-name">Nome del conto iniziale</label><input id="initial-account-name" name="initial_account_name" minlength="2" maxlength="32" placeholder="Es. Conto principale" required></div>' : '') +
       (isSignup ? '<div class="field"><label for="empire">Impero</label><select id="empire" name="empire">' + empireOptions + '</select><p class="muted">Gli imperi compariranno qui quando saranno creati. I nomadi non ricevono assicurazioni.</p></div>' : '') +
+      (isSignup ? '<div class="field"><label for="recovery-question">Domanda di sicurezza</label><input id="recovery-question" name="recovery_question" minlength="8" maxlength="180" placeholder="Es. In quale città sei nato?" required></div><div class="field"><label for="recovery-answer">Risposta di sicurezza</label><input id="recovery-answer" name="recovery_answer" minlength="3" maxlength="120" autocomplete="off" required><p class="muted">Scegli una risposta non facilmente indovinabile. La risposta verrà salvata come hash.</p></div>' : '') +
       '<div class="actions"><button type="submit">' + (isSignup ? 'Crea account' : 'Accedi') + '</button></div></form>' +
+      (!isSignup ? '<p><button type="button" class="secondary" id="forgot-password">Password dimenticata?</button></p>' : '') +
       '<p class="muted">La password del conto viene impostata dopo il primo accesso e resta separata da quella dell’account principale.</p>';
     document.getElementById("show-login").addEventListener("click", function () { renderAuth("login"); });
     document.getElementById("show-signup").addEventListener("click", function () { renderAuth("signup"); });
@@ -83,6 +85,41 @@
       event.preventDefault();
       submitAuth(event.currentTarget, isSignup);
     });
+    var forgot = document.getElementById("forgot-password");
+    if (forgot) forgot.addEventListener("click", recoverPassword);
+  }
+
+
+  async function recoverPassword() {
+    var username = window.prompt("Nome utente dell’account:");
+    if (!username) return;
+    username = username.trim();
+    try {
+      var questionResult = await supabase.functions.invoke("account-recovery", {
+        body: { action: "question", username: username }
+      });
+      if (questionResult.error) throw questionResult.error;
+      var question = questionResult.data && questionResult.data.question;
+      if (!question) {
+        showToast("Recupero non disponibile per questo account: domanda di sicurezza non configurata.");
+        return;
+      }
+      var answer = window.prompt("Domanda di sicurezza: " + question);
+      if (answer === null) return;
+      var password = window.prompt("Nuova password (almeno 8 caratteri):");
+      if (password === null) return;
+      if (password.length < 8 || password.length > 72) {
+        showToast("La password deve contenere da 8 a 72 caratteri.");
+        return;
+      }
+      var reset = await supabase.functions.invoke("account-recovery", {
+        body: { action: "reset", username: username, answer: answer, password: password }
+      });
+      if (reset.error) throw reset.error;
+      showToast("Password aggiornata. Ora puoi accedere.");
+    } catch (error) {
+      showToast(friendlyError(error));
+    }
   }
 
   function getRegistrationBrowserId() {
@@ -125,8 +162,15 @@
         result = await supabase.auth.signInWithPassword({ email: email, password: password });
       }
       if (result.error) throw result.error;
+      if (isSignup && result.data.session) {
+        var recoverySetup = await supabase.rpc("be_set_recovery_question", {
+          p_question: form.elements.recovery_question.value.trim(),
+          p_answer: form.elements.recovery_answer.value
+        });
+        if (recoverySetup.error) throw recoverySetup.error;
+      }
       if (isSignup && !result.data.session) {
-        renderAuth("login", "Account creato. Ora accedi con il nome utente e la password per impostare il conto iniziale.");
+        renderAuth("login", "Account creato. Dopo aver effettuato il primo accesso dovrai configurare la domanda di sicurezza.");
         return;
       }
       currentUser = result.data.user;
