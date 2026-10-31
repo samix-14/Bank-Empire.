@@ -49,13 +49,21 @@
     return '<h1>' + meta.title + '</h1><p class="page-intro">' + meta.description + '</p>';
   }
 
-  function renderAuth(mode, message) {
+  async function renderAuth(mode, message) {
     nav.hidden = true;
     logoutButton.hidden = true;
     userLabel.textContent = "Non hai effettuato l'accesso";
     content.innerHTML = "";
     authPanel.hidden = false;
     var isSignup = mode === "signup";
+    var empireOptions = '<option value="nomade">Nomade · non appartenere a un impero</option>';
+    if (isSignup) {
+      var empireResult = await supabase.from("empires").select("id,name").neq("id","nomade").order("name");
+      if (empireResult.error) throw empireResult.error;
+      empireOptions += (empireResult.data || []).map(function (empire) {
+        return '<option value="' + esc(empire.id) + '">' + esc(empire.name) + '</option>';
+      }).join("");
+    }
     authPanel.innerHTML =
       '<h1>Bank Empire</h1>' +
       '<p class="page-intro">Accedi al tuo account principale oppure registrati. Scegli un impero oppure registrati come nomade.</p>' +
@@ -66,7 +74,7 @@
       (isSignup ? '' : '<div class="field"><label for="email">Username oppure email</label><input id="email" name="email" type="text" autocomplete="username" placeholder="test1 oppure nome@esempio.it" required></div>') +
       '<div class="field"><label for="password">Password account principale (almeno 8 caratteri)</label><input id="password" name="password" type="password" minlength="8" autocomplete="' + (isSignup ? 'new-password' : 'current-password') + '" required></div>' +
       (isSignup ? '<div class="field"><label for="initial-account-name">Nome del conto iniziale</label><input id="initial-account-name" name="initial_account_name" minlength="2" maxlength="32" placeholder="Es. Conto principale" required></div>' : '') +
-      (isSignup ? '<div class="field"><label for="empire">Impero</label><select id="empire" name="empire"><option value="nomade">Nomade · non appartenere a un impero</option></select><p class="muted">Gli imperi compariranno qui quando saranno creati. I nomadi non ricevono assicurazioni.</p></div>' : '') +
+      (isSignup ? '<div class="field"><label for="empire">Impero</label><select id="empire" name="empire">' + empireOptions + '</select><p class="muted">Gli imperi compariranno qui quando saranno creati. I nomadi non ricevono assicurazioni.</p></div>' : '') +
       '<div class="actions"><button type="submit">' + (isSignup ? 'Crea account' : 'Accedi') + '</button></div></form>' +
       '<p class="muted">La password del conto viene impostata dopo il primo accesso e resta separata da quella dell’account principale.</p>';
     document.getElementById("show-login").addEventListener("click", function () { renderAuth("login"); });
