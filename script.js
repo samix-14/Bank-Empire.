@@ -226,9 +226,9 @@
     setNotice("<strong>Connessione attiva:</strong> dati economici e trasferimenti sono gestiti da Supabase.");
     try {
       if (!currentProfile) await loadProfile();
-      var recoveryStatus = await supabase.rpc("be_recovery_question", { p_username: currentProfile.username });
+      var recoveryStatus = await supabase.rpc("be_my_recovery_status");
       if (recoveryStatus.error) throw recoveryStatus.error;
-      if (!recoveryStatus.data) {
+      if (recoveryStatus.data !== true) {
         renderRecoverySetup();
         return;
       }
