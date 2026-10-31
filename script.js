@@ -189,6 +189,31 @@
     currentProfile = result.data;
   }
 
+  function renderRecoverySetup() {
+    nav.hidden = true;
+    content.innerHTML = "";
+    authPanel.hidden = false;
+    authPanel.innerHTML = '<h1>Proteggi il tuo account</h1><p class="page-intro">Prima di continuare, configura una domanda di sicurezza. Ti servirà per recuperare la password se la dimentichi.</p><form id="recovery-setup-form"><div class="field"><label for="setup-question">Domanda di sicurezza</label><input id="setup-question" name="question" minlength="8" maxlength="180" required></div><div class="field"><label for="setup-answer">Risposta</label><input id="setup-answer" name="answer" minlength="3" maxlength="120" autocomplete="off" required></div><div class="actions"><button type="submit">Salva domanda di sicurezza</button></div></form>';
+    document.getElementById("recovery-setup-form").addEventListener("submit", async function(event) {
+      event.preventDefault();
+      var form=event.currentTarget;
+      var button=form.querySelector('button[type="submit"]');
+      button.disabled=true;
+      try {
+        var saved=await supabase.rpc("be_set_recovery_question", {
+          p_question: form.elements.question.value.trim(),
+          p_answer: form.elements.answer.value
+        });
+        if(saved.error) throw saved.error;
+        authPanel.hidden=true;
+        await renderApp();
+      } catch(error) {
+        showToast(friendlyError(error));
+        button.disabled=false;
+      }
+    });
+  }
+
   async function renderApp() {
     if (!currentUser) {
       renderAuth("login");
@@ -201,6 +226,12 @@
     setNotice("<strong>Connessione attiva:</strong> dati economici e trasferimenti sono gestiti da Supabase.");
     try {
       if (!currentProfile) await loadProfile();
+      var recoveryStatus = await supabase.rpc("be_recovery_question", { p_username: currentProfile.username });
+      if (recoveryStatus.error) throw recoveryStatus.error;
+      if (!recoveryStatus.data) {
+        renderRecoverySetup();
+        return;
+      }
       if (currentProfile.banned_until && new Date(currentProfile.banned_until) > new Date()) {
         clearAccountSession();
         await supabase.auth.signOut();
