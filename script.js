@@ -58,7 +58,7 @@
     var isSignup = mode === "signup";
     authPanel.innerHTML =
       '<h1>Bank Empire</h1>' +
-      '<p class="page-intro">Accedi al tuo account principale oppure registrati. Il conto iniziale riceve il bonus previsto dall’assicurazione dimostrativa del tuo impero.</p>' +
+      '<p class="page-intro">Accedi al tuo account principale oppure registrati. Scegli un impero oppure registrati come nomade.</p>' +
       (message ? '<p class="notice">' + esc(message) + '</p>' : '') +
       '<div class="actions"><button type="button" id="show-login" ' + (!isSignup ? 'disabled' : '') + '>Accedi</button><button type="button" id="show-signup" ' + (isSignup ? 'disabled' : '') + '>Crea account</button></div>' +
       '<form id="auth-form">' +
@@ -66,7 +66,7 @@
       (isSignup ? '' : '<div class="field"><label for="email">Username oppure email</label><input id="email" name="email" type="text" autocomplete="username" placeholder="test1 oppure nome@esempio.it" required></div>') +
       '<div class="field"><label for="password">Password account principale (almeno 8 caratteri)</label><input id="password" name="password" type="password" minlength="8" autocomplete="' + (isSignup ? 'new-password' : 'current-password') + '" required></div>' +
       (isSignup ? '<div class="field"><label for="initial-account-name">Nome del conto iniziale</label><input id="initial-account-name" name="initial_account_name" minlength="2" maxlength="32" placeholder="Es. Conto principale" required></div>' : '') +
-      (isSignup ? '<div class="field"><label for="empire">Impero principale</label><select id="empire" name="empire"><option value="auroria">Impero di Auroria</option><option value="nova">Repubblica di Nova</option><option value="vesper">Dominio di Vesper</option></select></div>' : '') +
+      (isSignup ? '<div class="field"><label for="empire">Impero</label><select id="empire" name="empire"><option value="nomade">Nomade · non appartenere a un impero</option></select><p class="muted">Gli imperi compariranno qui quando saranno creati. I nomadi non ricevono assicurazioni.</p></div>' : '') +
       '<div class="actions"><button type="submit">' + (isSignup ? 'Crea account' : 'Accedi') + '</button></div></form>' +
       '<p class="muted">La password del conto viene impostata dopo il primo accesso e resta separata da quella dell’account principale.</p>';
     document.getElementById("show-login").addEventListener("click", function () { renderAuth("login"); });
@@ -566,7 +566,7 @@
       supabase.from("currencies").select("code,name").eq("enabled", true).order("code")
     ]);
     results.forEach(function (result) { if (result.error) throw result.error; });
-    var empires = results[0].data || [];
+    var empires = (results[0].data || []).filter(function (e) { return e.id !== 'nomade'; });
     var plans = results[1].data || [];
     var summary = results[2].data || [];
     var currencies = results[3].data || [];
@@ -577,10 +577,10 @@
     });
     content.innerHTML = pageHeader("empires") +
       '<p class="muted">I valori delle assicurazioni sono temporanei. Il conteggio WhatsApp è un dato registrato manualmente: la sincronizzazione automatica non è ancora implementata.</p>' +
-      '<div class="empire-grid">' + empires.map(function (empire) {
+      (empires.length ? '<div class="empire-grid">' + empires.map(function (empire) {
         var plan = plans.find(function (p) { return p.id === empire.selected_insurance_plan_id; });
-        var firstCurrency = currencies.length ? currencies[0].code : "SOL";
-        var firstRow = (grouped[empire.id] || {})[firstCurrency] || {};
+        var firstCurrency = currencies.length ? currencies[0].code : null;
+        var firstRow = firstCurrency ? ((grouped[empire.id] || {})[firstCurrency] || {}) : {};
         var lines = currencies.map(function (currency) {
           var row = (grouped[empire.id] || {})[currency.code] || {};
           var citizenTotal = Number(row.citizen_total || 0);
@@ -592,10 +592,10 @@
           '<br>Cittadini con account: ' + Number(firstRow.citizen_count || 0) +
           '</p><h3>Assicurazione attuale</h3><p>' + esc(plan ? plan.name : "Non configurata") + (plan ? '<br>Bonus iniziale: ' + money(plan.initial_bonus, plan.currency) + '<br>Costo indicativo: ' + money(plan.government_cost, plan.currency) : '') +
           '</p><h3>Patrimonio per valuta</h3><div class="currency-list">' + lines + '</div></article>';
-      }).join("") + '</div>' +
-      '<section class="panel"><h2>Assicurazioni dimostrative</h2><p class="muted">Per ora sono tre esempi. La pagina di gestione per gli imperatori arriverà in una versione successiva.</p><div class="plan-grid">' + plans.map(function (plan) {
+      }).join("") + '</div>' : '<section class="panel"><p class="empty">Non è stato ancora creato nessun impero.</p></section>') +
+      (plans.length ? '<section class="panel"><h2>Assicurazioni</h2><p class="muted">Per ora sono tre esempi. La pagina di gestione per gli imperatori arriverà in una versione successiva.</p><div class="plan-grid">' + plans.map(function (plan) {
         return '<article class="plan-card"><h3>' + esc(plan.name) + '</h3><p>Bonus sul conto iniziale</p><strong>' + money(plan.initial_bonus, plan.currency) + '</strong><p>Costo indicativo per l’impero</p><strong>' + money(plan.government_cost, plan.currency) + '</strong></article>';
-      }).join("") + '</div></section>';
+      }).join("") + '</div></section>' : '');
   }
 
   async function renderLedger() {
